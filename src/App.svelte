@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import CommitGraph from "./CommitGraph.svelte";
   import CommitDetail from "./CommitDetail.svelte";
   import Picker from "./Picker.svelte";
@@ -18,6 +19,9 @@
   let selected = $state(null);
   let finderOpen = $state(false);
   let fileView = $state(null);
+  let live = $state(false);
+  let liveTick = $state(0);
+  let listening = false;
 
   const repoName = $derived(
     repo?.workdir ? repo.workdir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() : "",
@@ -37,6 +41,9 @@
       view = "repo";
       const name = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
       invoke("add_recent_repo", { path: p, name }).catch(() => {});
+      invoke("watch_repo", { path: p })
+        .then(() => (live = true))
+        .catch(() => (live = false));
     } catch (e) {
       error = String(e);
       view = "home";
@@ -48,7 +55,26 @@
     selected = null;
     finderOpen = false;
     fileView = null;
+    live = false;
+    invoke("unwatch_repo").catch(() => {});
   }
+
+  // Re-fetch the repo's data when the watcher reports a change.
+  async function refresh() {
+    if (view !== "repo" || !path) return;
+    try {
+      commits = await invoke("commit_graph", { path, limit: 400 });
+      unpushed = await invoke("unpushed_commits", { path }).catch(() => []);
+      repo = await invoke("repo_open", { path });
+      liveTick++; // nudge the worktrees view to reload too
+    } catch {}
+  }
+
+  $effect(() => {
+    if (listening) return;
+    listening = true;
+    listen("repo-changed", () => refresh());
+  });
 </script>
 
 {#snippet leaf()}
@@ -82,6 +108,7 @@
         <span class="name">{repoName}<Copy text={repo.workdir ?? path} title="Copy repo path" /></span>
         {#if repo.head}<span class="branch">{@render leaf()}{repo.head}<Copy text={repo.head} title="Copy branch name" /></span>{/if}
         <span class="count">{commits.length} commits</span>
+        {#if live}<span class="live" title="Watching for changes"><span class="live-dot"></span>live</span>{/if}
       </div>
       <span class="legend">
         <span class="lg filled"></span>pushed
@@ -110,7 +137,7 @@
       </div>
     {:else}
       <div class="body">
-        <Worktrees {path} onopen={openRepo} />
+        <Worktrees {path} onopen={openRepo} tick={liveTick} />
       </div>
     {/if}
   </div>

@@ -1,10 +1,17 @@
 mod agent;
 mod repo;
 
+use notify::RecommendedWatcher;
 use repo::{CommitDetail, CommitNode, DirListing, GrepHit, RepoSummary, Worktree};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::Manager;
+
+/// Holds the active file-system watcher so live refresh can be switched per
+/// repository. Replacing the watcher drops (and stops) the previous one.
+#[derive(Default)]
+struct WatchState(Mutex<Option<RecommendedWatcher>>);
 
 /// Open a folder and return a summary if it is a git repository.
 /// Reads go through `gix`; see `repo::read`.
@@ -158,9 +165,51 @@ fn add_recent_repo(app: tauri::AppHandle, path: String, name: String) -> Vec<Rec
     list
 }
 
+/// Start watching `path` for changes; emits a debounced `repo-changed` event.
+/// Replaces any previous watcher (so switching repos stops the old one).
+#[tauri::command]
+fn watch_repo(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, WatchState>,
+    path: String,
+) -> Result<(), String> {
+    use notify::{RecursiveMode, Watcher};
+
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
+        if res.is_ok() {
+            let _ = tx.send(());
+        }
+    })
+    .map_err(|e| e.to_string())?;
+    watcher
+        .watch(std::path::Path::new(&path), RecursiveMode::Recursive)
+        .map_err(|e| e.to_string())?;
+
+    *state.0.lock().unwrap() = Some(watcher);
+
+    // Coalesce bursts of file events into one refresh notification.
+    let app2 = app.clone();
+    std::thread::spawn(move || {
+        use tauri::Emitter;
+        while rx.recv().is_ok() {
+            while rx.recv_timeout(std::time::Duration::from_millis(350)).is_ok() {}
+            let _ = app2.emit("repo-changed", ());
+        }
+    });
+    Ok(())
+}
+
+/// Stop watching the current repository.
+#[tauri::command]
+fn unwatch_repo(state: tauri::State<'_, WatchState>) {
+    *state.0.lock().unwrap() = None;
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(WatchState::default())
         .invoke_handler(tauri::generate_handler![
             repo_open,
             commit_graph,
@@ -175,6 +224,8 @@ pub fn run() {
             file_diff_between,
             file_at,
             clone_repo,
+            watch_repo,
+            unwatch_repo,
             recent_repos,
             add_recent_repo
         ])

@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import Copy from "./Copy.svelte";
 
-  let { path, onopen } = $props();
+  let { path, onopen, tick = 0 } = $props();
 
   let list = $state([]);
   let error = $state("");
@@ -10,6 +10,7 @@
 
   $effect(() => {
     const p = path;
+    tick; // re-run when live refresh nudges
     loading = true;
     error = "";
     invoke("worktrees", { path: p })
