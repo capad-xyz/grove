@@ -165,9 +165,13 @@ pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
         anyhow::bail!("unexpected commit metadata");
     }
 
+    // Diff against the first parent (or empty tree) so merges and roots behave
+    // consistently with file_diff.
+    let base = diff_base(&dir, oid);
+
     // status letter per path (best effort; renames keep the new path)
     let mut status: HashMap<String, String> = HashMap::new();
-    let name_status = write::git(&dir, &["show", oid, "--format=", "--name-status"])?;
+    let name_status = write::git(&dir, &["diff", "--name-status", &base, oid])?;
     for line in name_status.lines().filter(|l| !l.is_empty()) {
         let mut cols = line.split('\t');
         let code = cols.next().unwrap_or("M");
@@ -177,7 +181,7 @@ pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
     }
 
     let mut files = Vec::new();
-    let numstat = write::git(&dir, &["show", oid, "--format=", "--numstat"])?;
+    let numstat = write::git(&dir, &["diff", "--numstat", &base, oid])?;
     for line in numstat.lines().filter(|l| !l.is_empty()) {
         let mut cols = line.split('\t');
         let adds = cols.next().unwrap_or("0");
@@ -206,10 +210,24 @@ pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
     })
 }
 
-/// Unified diff for a single file in a commit.
+/// Unified diff for a single file in a commit, against its first parent (or the
+/// empty tree for a root commit). This makes merge commits show real changes
+/// instead of an empty combined diff.
 pub fn file_diff(path: &str, oid: &str, file: &str) -> Result<String> {
     let dir = workdir_of(path)?;
-    write::git(&dir, &["show", oid, "--format=", "--", file])
+    let base = diff_base(&dir, oid);
+    write::git(&dir, &["diff", &base, oid, "--", file])
+}
+
+/// The diff base for a commit: its first parent if it has one, otherwise git's
+/// empty-tree object (so a root commit shows as all additions).
+fn diff_base(dir: &str, oid: &str) -> String {
+    let parent = format!("{oid}^");
+    if write::git(dir, &["rev-parse", "--verify", "-q", &parent]).is_ok() {
+        parent
+    } else {
+        "4b825dc642cb6eb9a060e54bf8d69288fbee4904".to_string()
+    }
 }
 
 /// List the sub-directories of `path` for the folder picker. An empty `path`
