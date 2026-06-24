@@ -124,10 +124,15 @@ fn read_recents(app: &tauri::AppHandle) -> Vec<RecentRepo> {
         Ok(p) => p,
         Err(_) => return vec![],
     };
-    std::fs::read_to_string(&path)
+    let raw: Vec<RecentRepo> = std::fs::read_to_string(&path)
         .ok()
         .and_then(|d| serde_json::from_str(&d).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    // Collapse any duplicates already stored (first occurrence wins).
+    let mut seen = std::collections::HashSet::new();
+    raw.into_iter()
+        .filter(|r| seen.insert(norm_path(&r.path).to_lowercase()))
+        .collect()
 }
 
 #[tauri::command]
