@@ -17,6 +17,10 @@
   let inputEl = $state(null);
   let timer = null;
 
+  // Per-session result caches so re-typing or backspacing a term is instant.
+  const commitCache = new Map();
+  const contentCache = new Map();
+
   queueMicrotask(() => inputEl?.focus());
 
   const ICONS = {
@@ -76,17 +80,45 @@
       searchingContent = false;
       return;
     }
-    searchingCommits = true;
-    searchingContent = true;
+
+    // Serve from cache instantly; only hit git for the parts we haven't seen.
+    const needCommit = !commitCache.has(term);
+    const needContent = !contentCache.has(term);
+    if (!needCommit) {
+      commitHits = commitCache.get(term);
+      searchingCommits = false;
+    } else {
+      searchingCommits = true;
+    }
+    if (!needContent) {
+      contentHits = contentCache.get(term);
+      searchingContent = false;
+    } else {
+      searchingContent = true;
+    }
+    if (!needCommit && !needContent) return;
+
     timer = setTimeout(() => {
-      invoke("search_commits", { path, query: term })
-        .then((c) => (commitHits = c.slice(0, 6)))
-        .catch(() => (commitHits = []))
-        .finally(() => (searchingCommits = false));
-      invoke("grep_repo", { path, query: term })
-        .then((h) => (contentHits = h.slice(0, 8)))
-        .catch(() => (contentHits = []))
-        .finally(() => (searchingContent = false));
+      if (needCommit) {
+        invoke("search_commits", { path, query: term })
+          .then((c) => {
+            const r = c.slice(0, 6);
+            commitCache.set(term, r);
+            if (query === term) commitHits = r;
+          })
+          .catch(() => (commitHits = []))
+          .finally(() => (searchingCommits = false));
+      }
+      if (needContent) {
+        invoke("grep_repo", { path, query: term })
+          .then((h) => {
+            const r = h.slice(0, 8);
+            contentCache.set(term, r);
+            if (query === term) contentHits = r;
+          })
+          .catch(() => (contentHits = []))
+          .finally(() => (searchingContent = false));
+      }
     }, 120);
   });
 

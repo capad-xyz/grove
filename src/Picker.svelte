@@ -126,11 +126,74 @@
   const crumb = $derived(
     (listing?.current ?? "").split(/[\\/]/).filter(Boolean).slice(-5).join("  /  "),
   );
+
+  // ---- Home quick-open search (recents + actions) ----
+  let sQuery = $state("");
+  let sHighlight = $state(0);
+  let sEl = $state(null);
+
+  const sItems = $derived.by(() => {
+    if (mode !== "search") return [];
+    const q = sQuery.trim().toLowerCase();
+    const repos = recents
+      .filter((r) => !q || r.name.toLowerCase().includes(q) || r.path.toLowerCase().includes(q))
+      .map((r) => ({ kind: "repo", name: r.name, sub: r.path, path: r.path }));
+    const actions = [
+      { kind: "browse", name: "Browse a folder", sub: "Open a local repository" },
+      { kind: "git", name: "Clone from Git URL", sub: "Clone a remote repository" },
+    ].filter((a) => !q || a.name.toLowerCase().includes(q));
+    return [...repos, ...actions];
+  });
+
+  $effect(() => {
+    if (sHighlight >= sItems.length) sHighlight = Math.max(0, sItems.length - 1);
+  });
+
+  function openSearch() {
+    mode = "search";
+    sQuery = "";
+    sHighlight = 0;
+    queueMicrotask(() => sEl?.focus());
+  }
+
+  function activateSearch(item) {
+    if (!item) return;
+    if (item.kind === "repo") onopen(item.path);
+    else if (item.kind === "browse") startBrowse();
+    else if (item.kind === "git") startGit();
+  }
+
+  function sKey(e) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      sHighlight = Math.min(sHighlight + 1, sItems.length - 1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      sHighlight = Math.max(sHighlight - 1, 0);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      activateSearch(sItems[sHighlight]);
+    } else if (e.key === "Escape") {
+      mode = "home";
+    }
+  }
 </script>
+
+<svelte:window
+  onkeydown={(e) => {
+    if (mode === "home" && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openSearch();
+    }
+  }}
+/>
 
 <div class="home">
   <aside class="gx-side">
     <div class="gx-brand">{@render leaf()} Grove <span class="alpha">ALPHA</span></div>
+    <button class="gx-search-btn" onclick={openSearch}>
+      <span>Search projects</span><kbd>Ctrl K</kbd>
+    </button>
     <button class="gx-new" onclick={startBrowse}>{@html folderIcon} Open repository</button>
     <div class="gx-projlabel">PROJECTS</div>
     <div class="gx-projects">
@@ -244,6 +307,44 @@
       </div>
       <button class="gx-mbtn" onclick={doClone}>{busy ? "Cloning..." : "Clone into ~/GroveRepos"}</button>
       {#if gitErr}<div class="gx-merr">{gitErr}</div>{/if}
+    </div>
+  </div>
+{:else if mode === "search"}
+  <div class="gx-modal-bg" onclick={() => (mode = "home")}>
+    <div class="gx-modal" onclick={(e) => e.stopPropagation()}>
+      <div class="gx-mhead">
+        <button class="gx-mback" onclick={() => (mode = "home")} title="Close">‹</button>
+        <input
+          bind:this={sEl}
+          bind:value={sQuery}
+          placeholder="Search projects or actions..."
+          onkeydown={sKey}
+          spellcheck="false"
+        />
+      </div>
+      <div class="gx-list">
+        {#each sItems as item, i}
+          <button
+            class="gx-row"
+            class:on={i === sHighlight}
+            class:repo={item.kind === "repo"}
+            onclick={() => activateSearch(item)}
+            onmousemove={() => (sHighlight = i)}
+          >
+            <span class="ic">{@html item.kind === "repo" ? repoIcon : item.kind === "browse" ? folderIcon : ICONS.git}</span>
+            <span class="gx-rowmain">
+              <span class="gx-rowname">{item.name}</span>
+              <span class="gx-rowsub">{item.sub}</span>
+            </span>
+          </button>
+        {/each}
+        {#if !sItems.length}<div class="gx-side-empty">No matches</div>{/if}
+      </div>
+      <div class="gx-foot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+        <span><kbd>Enter</kbd> Open</span>
+        <span><kbd>Esc</kbd> Close</span>
+      </div>
     </div>
   </div>
 {/if}
