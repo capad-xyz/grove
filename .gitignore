@@ -11,6 +11,7 @@ build/
 # Rust / Tauri
 target/
 src-tauri/target/
+src-tauri/gen/
 **/*.rs.bk
 Cargo.lock.orig
 

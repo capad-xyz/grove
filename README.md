@@ -43,8 +43,22 @@ Grove's wedge is the combination almost nobody does well:
 
 ## Status
 
-Pre-alpha. This repository currently contains the design and the v0 scope.
-See [DESIGN.md](DESIGN.md) for the architecture and decisions.
+Pre-alpha. The app scaffold builds and runs: a Tauri 2 + Svelte 5 shell with a
+Rust core that opens a folder and reports whether it is a git repo (the first
+slice of the read path). The v0 hero features (worktree dashboard, commit graph,
+diff review, live refresh) are next. See [DESIGN.md](DESIGN.md) for the
+architecture and decisions.
+
+## Running it
+
+Prerequisites: Rust, Node 18+ (Node 22.12+ recommended), and on Windows the
+MSVC C++ build tools plus the WebView2 runtime.
+
+    npm install
+    npm run tauri dev
+
+The first Rust build compiles Tauri and gix and takes several minutes; later
+builds are incremental.
 
 ## Stack at a glance
 
