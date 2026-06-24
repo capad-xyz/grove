@@ -6,6 +6,7 @@
   import Worktrees from "./Worktrees.svelte";
   import Finder from "./Finder.svelte";
   import FileView from "./FileView.svelte";
+  import Copy from "./Copy.svelte";
 
   let view = $state("home"); // "home" | "repo"
   let tab = $state("graph"); // "graph" | "worktrees"
@@ -78,8 +79,8 @@
         {@render leaf()} Grove
       </button>
       <div class="repo-chip">
-        <span class="name">{repoName}</span>
-        {#if repo.head}<span class="branch">{@render leaf()}{repo.head}</span>{/if}
+        <span class="name">{repoName}<Copy text={repo.workdir ?? path} title="Copy repo path" /></span>
+        {#if repo.head}<span class="branch">{@render leaf()}{repo.head}<Copy text={repo.head} title="Copy branch name" /></span>{/if}
         <span class="count">{commits.length} commits</span>
       </div>
       <span class="legend">

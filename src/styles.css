@@ -433,6 +433,68 @@ button {
   overflow: auto;
 }
 
+/* ---------- One-click copy control ---------- */
+.copy-ic {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  vertical-align: middle;
+  transition: opacity 0.1s ease, color 0.1s ease;
+}
+.copy-ic:hover {
+  color: var(--accent);
+  opacity: 1;
+}
+.copy-ic.done {
+  color: var(--green);
+  opacity: 1;
+}
+.copy-lbl {
+  font-size: 11px;
+}
+/* Reveal inside hovered rows/cards. */
+.graph .row:hover .copy-ic,
+.dfile:hover .copy-ic,
+.wt-card:hover .copy-ic,
+.fv-commit:hover .copy-ic {
+  opacity: 0.6;
+}
+/* Always-visible contexts (header meta, file-view header, topbar chip). */
+.dmeta .copy-ic,
+.fv-head .copy-ic,
+.repo-chip .copy-ic {
+  opacity: 0.5;
+}
+
+/* "Copy details" button in the commit header. */
+.dhead-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.copy-btn {
+  flex: none;
+  padding: 5px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.copy-btn:hover {
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.copy-btn.done {
+  color: var(--green);
+  border-color: rgba(132, 192, 138, 0.4);
+}
+
 .body {
   flex: 1;
   display: flex;

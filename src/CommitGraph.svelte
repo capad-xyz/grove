@@ -5,6 +5,8 @@
   let { commits = [], selected = null, onselect = () => {}, unpushed = [] } = $props();
   const unpushedSet = $derived(new Set(unpushed));
 
+  import Copy from "./Copy.svelte";
+
   const ROW = 34; // px per commit row (must match --row in styles.css)
   const LANE = 18; // px per graph lane
   const PAD = 18; // left padding before lane 0
@@ -174,6 +176,7 @@
           <span class="author">{c.author}</span>
           <span class="time">{rel(c.time)}</span>
           <span class="hash">{c.short}</span>
+          <Copy text={c.id} title="Copy SHA" />
         </span>
       </button>
     {/each}

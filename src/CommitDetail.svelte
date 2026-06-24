@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import DiffView from "./DiffView.svelte";
+  import Copy from "./Copy.svelte";
 
   let { path, oid } = $props();
 
@@ -113,9 +114,9 @@
       {#if detail.body}<pre class="dbody">{detail.body}</pre>{/if}
       <div class="dmeta">
         <span class="dauthor">{detail.author}</span>
-        <span class="demail">{detail.email}</span>
+        <span class="demail">{detail.email}<Copy text={detail.email} title="Copy email" /></span>
         <span class="ddate">{fmtDate(detail.date)}</span>
-        <span class="dhash">{detail.short}</span>
+        <span class="dhash">{detail.short}<Copy text={detail.id} title="Copy full SHA" /></span>
       </div>
     </div>
 
@@ -129,6 +130,7 @@
         >
           <span class="dstatus s-{f.status}">{f.status}</span>
           <span class="dpath">{f.path}</span>
+          <Copy text={f.path} title="Copy file path" />
           <span class="dstat">
             {#if f.additions}<span class="add">+{f.additions}</span>{/if}
             {#if f.deletions}<span class="del">-{f.deletions}</span>{/if}

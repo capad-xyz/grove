@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import DiffView from "./DiffView.svelte";
+  import Copy from "./Copy.svelte";
 
   let { path, file, onclose } = $props();
 
@@ -57,7 +58,7 @@
 <div class="gx-modal-bg" onclick={onclose}>
   <div class="fv" onclick={(e) => e.stopPropagation()}>
     <div class="fv-head">
-      <span class="fv-path">{file}</span>
+      <span class="fv-path">{file}<Copy text={file} title="Copy file path" /></span>
       <button class="fv-close" onclick={onclose}>Close</button>
     </div>
 
@@ -67,7 +68,7 @@
         {#each history as c, i}
           <button class="fv-commit" class:on={toRev === c.id} onclick={() => selectCommit(i)}>
             <span class="fv-sum">{c.summary}</span>
-            <span class="fv-sub"><span class="fv-hash">{c.short}</span> {c.author}</span>
+            <span class="fv-sub"><span class="fv-hash">{c.short}</span> {c.author}<Copy text={c.id} title="Copy SHA" /></span>
           </button>
         {/each}
       </div>

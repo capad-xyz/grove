@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import Copy from "./Copy.svelte";
 
   let { path, onopen } = $props();
 
@@ -36,6 +37,7 @@
             <span class="wt-branch">
               {w.branch ?? (w.detached ? "detached HEAD" : "unknown")}
             </span>
+            {#if w.branch}<Copy text={w.branch} title="Copy branch name" />{/if}
             {#if w.is_main}<span class="wt-main-tag">main</span>{/if}
           </div>
 
@@ -51,10 +53,10 @@
             {/if}
           </div>
 
-          <div class="wt-path">{w.path}</div>
+          <div class="wt-path">{w.path}<Copy text={w.path} title="Copy worktree path" /></div>
 
           <div class="wt-foot">
-            <span class="wt-hash">{w.head}</span>
+            <span class="wt-hash">{w.head}<Copy text={w.head} title="Copy commit" /></span>
             <button class="wt-open" onclick={() => onopen(w.path)}>Open</button>
           </div>
         </div>
