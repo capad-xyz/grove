@@ -1069,11 +1069,38 @@ kbd {
   padding: 18px 20px;
   border-bottom: 1px solid var(--line);
 }
+.dhead-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
 .dhead h2 {
   margin: 0;
+  flex: 1;
   font-size: 15.5px;
   line-height: 1.4;
   letter-spacing: -0.2px;
+}
+.copy-btn {
+  flex: none;
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.copy-btn:hover {
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.copy-btn.done {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
 }
 .dbody {
   margin: 12px 0 0;

@@ -9,6 +9,60 @@
   let activeFile = $state(null);
   let patch = $state("");
   let diffLoading = $state(false);
+  let copied = $state(false);
+
+  async function writeClipboard(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        ta.remove();
+        return ok;
+      } catch {
+        return false;
+      }
+    }
+  }
+
+  // One-click: copy the whole commit context (metadata + files + diffs) as
+  // markdown, ready to paste into an agent, a PR, or notes.
+  async function copyDetails() {
+    if (!detail) return;
+    const d = detail;
+    const out = [`# ${d.subject}`];
+    if (d.body) out.push("", d.body);
+    out.push(
+      "",
+      `- Commit: \`${d.id}\``,
+      `- Author: ${d.author} <${d.email}>`,
+      `- Date: ${new Date(d.date * 1000).toString()}`,
+      "",
+      `## Changed files (${d.files.length})`,
+    );
+    for (const f of d.files) {
+      out.push(`- ${f.status} \`${f.path}\` (+${f.additions} -${f.deletions})`);
+    }
+    const diffs = await Promise.all(
+      d.files.map((f) =>
+        invoke("file_diff", { path, oid: d.id, file: f.path })
+          .then((p) => ({ file: f.path, p }))
+          .catch(() => ({ file: f.path, p: "" })),
+      ),
+    );
+    out.push("", "## Diff");
+    for (const { file, p } of diffs) {
+      out.push("", `### ${file}`, "```diff", p.trimEnd(), "```");
+    }
+    const ok = await writeClipboard(out.join("\n"));
+    copied = ok;
+    setTimeout(() => (copied = false), 1600);
+  }
 
   $effect(() => {
     const id = oid;
@@ -50,7 +104,12 @@
     <div class="derror">{error}</div>
   {:else if detail}
     <div class="dhead">
-      <h2>{detail.subject}</h2>
+      <div class="dhead-top">
+        <h2>{detail.subject}</h2>
+        <button class="copy-btn" class:done={copied} onclick={copyDetails} title="Copy message, metadata, and diffs to clipboard">
+          {copied ? "Copied" : "Copy details"}
+        </button>
+      </div>
       {#if detail.body}<pre class="dbody">{detail.body}</pre>{/if}
       <div class="dmeta">
         <span class="dauthor">{detail.author}</span>
