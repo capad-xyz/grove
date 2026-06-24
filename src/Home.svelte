@@ -24,6 +24,11 @@
 </script>
 
 <div class="home2">
+  <div class="home2-brand">
+    <svg class="leaf" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="2.4" /><circle cx="6" cy="7" r="2.4" /><circle cx="17" cy="11" r="2.4" /><path d="M6 9.4v6.2M7.8 8.2 15 10.4" /></svg>
+    <span>Grove</span>
+    <span class="alpha">ALPHA</span>
+  </div>
   <div class="home2-inner">
     <div class="home2-hero">
       <h1>{recents.length ? "Welcome back" : "Welcome to Grove"}</h1>

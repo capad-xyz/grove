@@ -28,6 +28,7 @@
   let branches = $state([]);
   let branch = $state(""); // "" = all branches
   let headDirty = $state(false); // open repo has uncommitted changes
+  let lastRepoPath = $state(""); // for forward-nav (Ctrl+Right) after going home
   let detailWidth = $state(520); // resizable detail/diff pane
 
   // Persistent sidebar: recent repos + per-repo dirty state + open-flow modals.
@@ -136,6 +137,7 @@
   }
 
   function backToPicker() {
+    if (path) lastRepoPath = path;
     view = "home";
     selected = null;
     finderOpen = false;
@@ -182,10 +184,25 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p")) {
+    const tag = (e.target?.tagName || "").toLowerCase();
+    const typing = tag === "input" || tag === "textarea" || e.target?.isContentEditable;
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p")) {
       e.preventDefault();
       if (view === "repo") finderOpen = true;
       else openMode = "search";
+    } else if (mod && !typing && e.key === "ArrowLeft") {
+      // Back: leave the repo for the home launcher.
+      if (view === "repo") {
+        e.preventDefault();
+        backToPicker();
+      }
+    } else if (mod && !typing && e.key === "ArrowRight") {
+      // Forward: reopen the repo we just stepped back from.
+      if (view === "home" && lastRepoPath) {
+        e.preventDefault();
+        openRepo(lastRepoPath);
+      }
     }
   }}
 />
@@ -196,6 +213,12 @@
     {:else}
       <div class="app">
         <div class="topbar">
+      <button class="nav-home" onclick={backToPicker} title="Back to home (Ctrl+Left)">
+        <svg class="chev" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 5l-7 7 7 7" /></svg>
+        {@render leaf()}
+        <span class="nav-word">Grove</span>
+        <span class="nav-alpha">ALPHA</span>
+      </button>
       <div class="repo-chip">
         <span class="name">{repoName}<Copy text={repo.workdir ?? path} title="Copy repo path" /></span>
         {#if repo.head}<span class="branch">{@render leaf()}{repo.head}<Copy text={repo.head} title="Copy branch name" /></span>{/if}
