@@ -26,6 +26,24 @@
   let listening = false;
   let branches = $state([]);
   let branch = $state(""); // "" = all branches
+  let detailWidth = $state(520); // resizable detail/diff pane
+
+  function startResize(e) {
+    e.preventDefault();
+    const onMove = (ev) => {
+      detailWidth = Math.max(340, Math.min(window.innerWidth - 280, window.innerWidth - ev.clientX));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
 
   // Precomputed file index for instant Spotlight search. Built once per repo
   // (ls-files immediately, the full "every path ever" set in the background)
@@ -192,7 +210,8 @@
           <CommitGraph {commits} {selected} {unpushed} onselect={(id) => (selected = id)} />
         </div>
         {#if selected}
-          <div class="detail-pane">
+          <div class="resizer" onmousedown={startResize} title="Drag to resize"></div>
+          <div class="detail-pane" style="width:{detailWidth}px">
             <CommitDetail {path} oid={selected} />
           </div>
         {/if}

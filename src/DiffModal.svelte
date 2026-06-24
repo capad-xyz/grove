@@ -57,7 +57,7 @@
             <Skeleton lines={16} h="13px" gap="10px" widths={["94%", "72%", "86%", "60%", "78%", "50%", "90%", "66%", "42%", "82%", "68%", "54%", "88%", "62%", "46%", "76%"]} />
           </div>
         {:else}
-          <DiffView {patch} />
+          <DiffView {patch} file={active} />
         {/if}
       </div>
     </div>

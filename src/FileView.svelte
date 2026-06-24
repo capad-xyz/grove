@@ -129,7 +129,7 @@
               <Skeleton lines={14} h="13px" gap="10px" widths={["92%", "70%", "84%", "58%", "78%", "50%", "88%", "64%", "42%", "80%", "66%", "54%", "86%", "60%"]} />
             </div>
           {:else}
-            <DiffView {patch} empty="No differences between {shortRev(fromRev)} and {shortRev(toRev)}." />
+            <DiffView {patch} {file} empty="No differences between {shortRev(fromRev)} and {shortRev(toRev)}." />
           {/if}
         {:else if blameErr}
           <div class="derror">{blameErr}</div>

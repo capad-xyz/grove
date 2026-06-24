@@ -214,7 +214,7 @@
     {:else if sel?.group === "untracked"}
       <div class="ch-untracked"><div class="ch-untag">New file</div><pre>{untracked}</pre></div>
     {:else if sel}
-      <DiffView {patch} empty="No changes to show." />
+      <DiffView {patch} file={sel.file} empty="No changes to show." />
     {:else}
       <div class="ch-empty">Select a file to see its changes.</div>
     {/if}

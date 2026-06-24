@@ -955,9 +955,19 @@ button {
 .detail-pane {
   width: 480px;
   flex: none;
-  border-left: 1px solid var(--line);
   background: var(--surface);
   overflow: auto;
+}
+.resizer {
+  width: 6px;
+  flex: none;
+  cursor: col-resize;
+  background: var(--line);
+  transition: background 0.12s ease;
+}
+.resizer:hover,
+.resizer:active {
+  background: var(--accent);
 }
 .error {
   margin: 24px;
@@ -2026,6 +2036,59 @@ kbd {
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Syntax highlighting (highlight.js token classes), warm theme. */
+.hljs-keyword,
+.hljs-built_in,
+.hljs-literal {
+  color: #b691d6;
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-meta .hljs-string {
+  color: #96c78c;
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #d8a657;
+}
+.hljs-comment,
+.hljs-quote {
+  color: #6f6b62;
+  font-style: italic;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section {
+  color: #84a3cc;
+}
+.hljs-title.class_,
+.hljs-type {
+  color: #6bb3a6;
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-property,
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: #e0a06f;
+}
+.hljs-tag,
+.hljs-name,
+.hljs-selector-tag,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #d98080;
+}
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params {
+  color: var(--text-dim);
+}
+.hljs-meta {
+  color: var(--muted);
 }
 .wrap-toggle {
   flex: none;

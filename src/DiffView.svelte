@@ -2,7 +2,10 @@
   // Renders a unified diff with old/new line-number gutters and a single
   // horizontal scroll. Shared by the commit detail panel and the file viewer.
   import { wrapPref } from "./diffwrap.svelte.js";
-  let { patch = "", empty = "No changes." } = $props();
+  import { langFor, highlightLine } from "./highlight.js";
+  let { patch = "", empty = "No changes.", file = "" } = $props();
+
+  const lang = $derived(langFor(file));
 
   const lines = $derived(parseDiff(patch));
 
@@ -45,7 +48,7 @@
         <span class="gut">{d.oldNo}</span>
         <span class="gut">{d.newNo}</span>
         <span class="sign">{d.sign}</span>
-        <span class="code">{d.text || " "}</span>
+        <span class="code">{#if d.kind === "hunk"}{d.text}{:else}{@html highlightLine(d.text, lang)}{/if}</span>
       </div>
     {/each}
   {/if}
