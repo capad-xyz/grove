@@ -4,7 +4,7 @@
 
 use super::write;
 use super::{
-    CommitDetail, CommitNode, DirEntry, DirListing, FileChange, RepoSummary, Worktree,
+    CommitDetail, CommitNode, DirEntry, DirListing, FileChange, GrepHit, RepoSummary, Worktree,
 };
 use anyhow::{Context, Result};
 use std::collections::HashMap;
@@ -51,7 +51,6 @@ pub fn graph(path: &str, limit: u32) -> Result<Vec<CommitNode>> {
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| repo.git_dir().display().to_string());
 
-    let fmt = format!("--pretty=format:%H{FS}%h{FS}%P{FS}%an{FS}%at{FS}%D{FS}%s{RS}");
     let limit = limit.to_string();
     let out = write::git(
         &dir,
@@ -62,10 +61,21 @@ pub fn graph(path: &str, limit: u32) -> Result<Vec<CommitNode>> {
             "--decorate=full",
             "-n",
             &limit,
-            &fmt,
+            &commit_format(),
         ],
     )?;
+    Ok(parse_commit_records(&out))
+}
 
+const fn commit_format_str() -> &'static str {
+    "%H\u{1f}%h\u{1f}%P\u{1f}%an\u{1f}%at\u{1f}%D\u{1f}%s\u{1e}"
+}
+fn commit_format() -> String {
+    format!("--pretty=format:{}", commit_format_str())
+}
+
+/// Parse `git log` output produced with `commit_format()` into commit nodes.
+fn parse_commit_records(out: &str) -> Vec<CommitNode> {
     let mut nodes = Vec::new();
     for record in out.split(RS) {
         let record = record.trim_start_matches('\n');
@@ -80,18 +90,17 @@ pub fn graph(path: &str, limit: u32) -> Result<Vec<CommitNode>> {
             .split_whitespace()
             .map(|s| s.to_string())
             .collect::<Vec<_>>();
-        let refs = parse_refs(f[5]);
         nodes.push(CommitNode {
             id: f[0].to_string(),
             short: f[1].to_string(),
             parents,
             author: f[3].to_string(),
             time: f[4].parse().unwrap_or(0),
-            refs,
+            refs: parse_refs(f[5]),
             summary: f[6].to_string(),
         });
     }
-    Ok(nodes)
+    nodes
 }
 
 /// Turn `%D` decorations into clean short names, e.g.
@@ -302,4 +311,80 @@ fn ahead_behind(wt: &str) -> (u32, u32, bool) {
         }
         Err(_) => (0, 0, false),
     }
+}
+
+/// Full SHAs of commits on local branches that are not on any remote
+/// (i.e. unpushed). With no remotes configured, every local commit is listed.
+pub fn unpushed_commits(path: &str) -> Result<Vec<String>> {
+    let dir = workdir_of(path)?;
+    let out = write::git(&dir, &["rev-list", "--branches", "--not", "--remotes"]).unwrap_or_default();
+    Ok(out
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
+/// All tracked file paths, for the file finder.
+pub fn list_files(path: &str) -> Result<Vec<String>> {
+    let dir = workdir_of(path)?;
+    let out = write::git(&dir, &["ls-files"])?;
+    Ok(out
+        .lines()
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
+/// Content search across tracked files (case-insensitive fixed-string).
+pub fn grep_repo(path: &str, query: &str) -> Result<Vec<GrepHit>> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let dir = workdir_of(path)?;
+    // git grep exits non-zero on no matches, so treat errors as empty.
+    let out = write::git(&dir, &["grep", "-n", "-I", "-F", "-i", "-e", query]).unwrap_or_default();
+    let mut hits = Vec::new();
+    for line in out.lines().take(300) {
+        let mut parts = line.splitn(3, ':');
+        let file = parts.next().unwrap_or("").to_string();
+        let lno = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        let text = parts.next().unwrap_or("").to_string();
+        if file.is_empty() {
+            continue;
+        }
+        hits.push(GrepHit { file, line: lno, text });
+    }
+    Ok(hits)
+}
+
+/// Commits that touched `file`, newest first.
+pub fn file_history(path: &str, file: &str) -> Result<Vec<CommitNode>> {
+    let dir = workdir_of(path)?;
+    let out = write::git(
+        &dir,
+        &[
+            "log",
+            "--topo-order",
+            "-n",
+            "200",
+            &commit_format(),
+            "--follow",
+            "--",
+            file,
+        ],
+    )?;
+    Ok(parse_commit_records(&out))
+}
+
+/// Diff of a single file between two revisions.
+pub fn file_diff_between(path: &str, a: &str, b: &str, file: &str) -> Result<String> {
+    let dir = workdir_of(path)?;
+    write::git(&dir, &["diff", a, b, "--", file])
+}
+
+/// Contents of `file` at revision `rev` (e.g. "HEAD"), for quick view.
+pub fn file_at(path: &str, rev: &str, file: &str) -> Result<String> {
+    let dir = workdir_of(path)?;
+    write::git(&dir, &["show", &format!("{rev}:{file}")])
 }

@@ -2,7 +2,8 @@
   // Renders a commit graph: an SVG of lanes/nodes on the left, aligned with a
   // column of commit rows on the right. Lane layout is computed here in one
   // pass over the topologically-ordered commits from the Rust side.
-  let { commits = [], selected = null, onselect = () => {} } = $props();
+  let { commits = [], selected = null, onselect = () => {}, unpushed = [] } = $props();
+  const unpushedSet = $derived(new Set(unpushed));
 
   const ROW = 34; // px per commit row (must match --row in styles.css)
   const LANE = 18; // px per graph lane
@@ -147,7 +148,12 @@
       {#if n.commit.id === selected}
         <circle cx={n.x} cy={n.y} r={R + 3.5} fill="none" stroke={n.color} stroke-width="2" opacity="0.55" />
       {/if}
-      <circle cx={n.x} cy={n.y} r={R} fill={n.color} stroke="#15171c" stroke-width="2" />
+      {#if unpushedSet.has(n.commit.id)}
+        <!-- unpushed: hollow node -->
+        <circle cx={n.x} cy={n.y} r={R} fill="#121317" stroke={n.color} stroke-width="2" />
+      {:else}
+        <circle cx={n.x} cy={n.y} r={R} fill={n.color} stroke="#121317" stroke-width="2" />
+      {/if}
     {/each}
   </svg>
 

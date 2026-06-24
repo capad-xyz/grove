@@ -75,6 +75,14 @@ pub struct DirListing {
     pub entries: Vec<DirEntry>,
 }
 
+/// One match from a repository content search.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GrepHit {
+    pub file: String,
+    pub line: u32,
+    pub text: String,
+}
+
 /// One linked working tree of a repository.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Worktree {

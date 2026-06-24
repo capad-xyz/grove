@@ -149,8 +149,45 @@ button {
   background: var(--surface-3);
   color: var(--text);
 }
-.open-another {
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.legend .lg {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-left: 6px;
+}
+.legend .lg.filled {
+  background: var(--accent);
+}
+.legend .lg.hollow {
+  background: var(--bg);
+  border: 2px solid var(--accent);
+}
+.find-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin-left: auto;
+  padding: 7px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.find-btn:hover {
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.open-another {
   padding: 7px 14px;
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -162,6 +199,238 @@ button {
 .open-another:hover {
   border-color: var(--accent-line);
   color: var(--text);
+}
+
+/* ---------- Finder (Ctrl+P) ---------- */
+.finder {
+  width: 660px;
+  max-width: 90vw;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.fnd-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.fnd-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  flex: none;
+}
+.fnd-tabs button {
+  padding: 5px 12px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fnd-tabs button.on {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.fnd-head input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 15px;
+}
+.fnd-list {
+  max-height: 52vh;
+  overflow: auto;
+  padding: 6px;
+}
+.fnd-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.fnd-row.on {
+  background: var(--surface-3);
+}
+.fnd-name {
+  font-weight: 600;
+  flex: none;
+}
+.fnd-dir {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fnd-row.hit {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+}
+.fnd-where {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+}
+.fnd-ln {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+.fnd-code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fnd-empty {
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------- File view (history + compare) ---------- */
+.fv {
+  width: 1000px;
+  max-width: 94vw;
+  height: 78vh;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.fv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.fv-path {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.fv-close {
+  padding: 6px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+}
+.fv-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.fv-history {
+  width: 320px;
+  flex: none;
+  border-right: 1px solid var(--line);
+  overflow: auto;
+  padding: 8px;
+}
+.fv-h {
+  padding: 6px 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.fv-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 9px 10px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.fv-commit:hover {
+  background: var(--surface-2);
+}
+.fv-commit.on {
+  background: var(--accent-soft);
+}
+.fv-sum {
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fv-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.fv-hash {
+  font-family: var(--mono);
+  color: var(--accent);
+}
+.fv-diff {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.fv-compare {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+  color: var(--muted);
+}
+.fv-compare select {
+  flex: 1;
+  min-width: 0;
+  max-width: 360px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+.fv-arrow {
+  flex: none;
+}
+.fv-diff .ddiff {
+  flex: 1;
+  overflow: auto;
 }
 
 .body {

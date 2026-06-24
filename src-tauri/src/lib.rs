@@ -1,7 +1,7 @@
 mod agent;
 mod repo;
 
-use repo::{CommitDetail, CommitNode, DirListing, RepoSummary, Worktree};
+use repo::{CommitDetail, CommitNode, DirListing, GrepHit, RepoSummary, Worktree};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::Manager;
@@ -41,6 +41,42 @@ fn list_dir(path: String) -> Result<DirListing, String> {
 #[tauri::command]
 fn worktrees(path: String) -> Result<Vec<Worktree>, String> {
     repo::read::worktrees(&path).map_err(|e| e.to_string())
+}
+
+/// Full SHAs of unpushed (local-only) commits.
+#[tauri::command]
+fn unpushed_commits(path: String) -> Result<Vec<String>, String> {
+    repo::read::unpushed_commits(&path).map_err(|e| e.to_string())
+}
+
+/// All tracked file paths (for the file finder).
+#[tauri::command]
+fn list_files(path: String) -> Result<Vec<String>, String> {
+    repo::read::list_files(&path).map_err(|e| e.to_string())
+}
+
+/// Content search across tracked files.
+#[tauri::command]
+fn grep_repo(path: String, query: String) -> Result<Vec<GrepHit>, String> {
+    repo::read::grep_repo(&path, &query).map_err(|e| e.to_string())
+}
+
+/// Commits that touched a file.
+#[tauri::command]
+fn file_history(path: String, file: String) -> Result<Vec<CommitNode>, String> {
+    repo::read::file_history(&path, &file).map_err(|e| e.to_string())
+}
+
+/// Diff of one file between two revisions.
+#[tauri::command]
+fn file_diff_between(path: String, a: String, b: String, file: String) -> Result<String, String> {
+    repo::read::file_diff_between(&path, &a, &b, &file).map_err(|e| e.to_string())
+}
+
+/// Contents of a file at a revision (quick view).
+#[tauri::command]
+fn file_at(path: String, rev: String, file: String) -> Result<String, String> {
+    repo::read::file_at(&path, &rev, &file).map_err(|e| e.to_string())
 }
 
 /// Clone `url` into `~/GroveRepos/<name>` and return the local path.
@@ -121,6 +157,12 @@ pub fn run() {
             file_diff,
             list_dir,
             worktrees,
+            unpushed_commits,
+            list_files,
+            grep_repo,
+            file_history,
+            file_diff_between,
+            file_at,
             clone_repo,
             recent_repos,
             add_recent_repo

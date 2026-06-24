@@ -4,14 +4,19 @@
   import CommitDetail from "./CommitDetail.svelte";
   import Picker from "./Picker.svelte";
   import Worktrees from "./Worktrees.svelte";
+  import Finder from "./Finder.svelte";
+  import FileView from "./FileView.svelte";
 
   let view = $state("home"); // "home" | "repo"
   let tab = $state("graph"); // "graph" | "worktrees"
   let path = $state("");
   let repo = $state(null);
   let commits = $state([]);
+  let unpushed = $state([]);
   let error = $state("");
   let selected = $state(null);
+  let finderOpen = $state(false);
+  let fileView = $state(null);
 
   const repoName = $derived(
     repo?.workdir ? repo.workdir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() : "",
@@ -21,9 +26,12 @@
     error = "";
     selected = null;
     tab = "graph";
+    finderOpen = false;
+    fileView = null;
     try {
       repo = await invoke("repo_open", { path: p });
       commits = await invoke("commit_graph", { path: p, limit: 400 });
+      unpushed = await invoke("unpushed_commits", { path: p }).catch(() => []);
       path = p;
       view = "repo";
       const name = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
@@ -37,6 +45,8 @@
   function backToPicker() {
     view = "home";
     selected = null;
+    finderOpen = false;
+    fileView = null;
   }
 </script>
 
@@ -46,6 +56,15 @@
     <path d="M6 9.4v6.2M7.8 8.2 15 10.4" />
   </svg>
 {/snippet}
+
+<svelte:window
+  onkeydown={(e) => {
+    if (view === "repo" && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+      e.preventDefault();
+      finderOpen = true;
+    }
+  }}
+/>
 
 {#if view === "home"}
   <div class="app">
@@ -63,17 +82,24 @@
         {#if repo.head}<span class="branch">{@render leaf()}{repo.head}</span>{/if}
         <span class="count">{commits.length} commits</span>
       </div>
+      <span class="legend">
+        <span class="lg filled"></span>pushed
+        <span class="lg hollow"></span>local
+      </span>
       <div class="switcher">
         <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>
         <button class:on={tab === "worktrees"} onclick={() => (tab = "worktrees")}>Worktrees</button>
       </div>
+      <button class="find-btn" onclick={() => (finderOpen = true)} title="Find file or content">
+        Find <kbd>Ctrl P</kbd>
+      </button>
       <button class="open-another" onclick={backToPicker}>Open another</button>
     </div>
 
     {#if tab === "graph"}
       <div class="body">
         <div class="graph-pane">
-          <CommitGraph {commits} {selected} onselect={(id) => (selected = id)} />
+          <CommitGraph {commits} {selected} {unpushed} onselect={(id) => (selected = id)} />
         </div>
         {#if selected}
           <div class="detail-pane">
@@ -87,4 +113,11 @@
       </div>
     {/if}
   </div>
+{/if}
+
+{#if finderOpen}
+  <Finder {path} onpick={(f) => { fileView = f; finderOpen = false; }} onclose={() => (finderOpen = false)} />
+{/if}
+{#if fileView}
+  <FileView {path} file={fileView} onclose={() => (fileView = null)} />
 {/if}
