@@ -7,6 +7,7 @@
   import Worktrees from "./Worktrees.svelte";
   import Finder from "./Finder.svelte";
   import FileView from "./FileView.svelte";
+  import BranchPicker from "./BranchPicker.svelte";
   import Copy from "./Copy.svelte";
 
   let view = $state("home"); // "home" | "repo"
@@ -128,10 +129,14 @@
         <span class="lg hollow"></span>local
       </span>
       {#if branches.length}
-        <select class="branch-select" bind:value={branch} onchange={onBranchChange} title="Filter the graph by branch">
-          <option value="">All branches</option>
-          {#each branches as b}<option value={b}>{b}</option>{/each}
-        </select>
+        <BranchPicker
+          {branches}
+          value={branch}
+          onselect={(b) => {
+            branch = b;
+            onBranchChange();
+          }}
+        />
       {/if}
       <div class="switcher">
         <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>

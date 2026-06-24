@@ -126,8 +126,14 @@ button {
   color: var(--muted);
 }
 
-.branch-select {
-  max-width: 180px;
+.bp {
+  position: relative;
+}
+.bp-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
   padding: 6px 10px;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -137,8 +143,72 @@ button {
   font-family: var(--mono);
   cursor: pointer;
 }
-.branch-select:hover {
+.bp-btn:hover {
   border-color: var(--accent-line);
+}
+.bp-val {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bp-caret {
+  flex: none;
+  color: var(--muted);
+}
+.bp-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  width: 300px;
+  max-width: 80vw;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.bp-search {
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line-soft);
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+}
+.bp-list {
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px;
+}
+.bp-opt {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bp-opt.on {
+  background: var(--surface-3);
+}
+.bp-opt.active {
+  color: var(--accent);
+}
+.bp-empty {
+  padding: 12px;
+  color: var(--muted);
+  font-size: 12.5px;
 }
 
 .switcher {
