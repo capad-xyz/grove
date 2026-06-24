@@ -1,5 +1,5 @@
 <script>
-  let { recents = [], onbrowse, ongit, onsearch } = $props();
+  let { recents = [], dirty = {}, onopen, onbrowse, ongit, onsearch } = $props();
 
   const ICONS = {
     local: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
@@ -35,6 +35,21 @@
       <span class="hs-text">Search your projects, files, commits...</span>
       <kbd>Ctrl K</kbd>
     </button>
+
+    {#if recents.length}
+      <div class="home2-h">Recent repositories</div>
+      <div class="home2-recents">
+        {#each recents as r}
+          <button class="home2-recent" onclick={() => onopen(r.path)} title={r.path}>
+            <span class="rdot" class:dirty={dirty[r.path]}></span>
+            <span class="rmain">
+              <span class="rname">{r.name}</span>
+              <span class="rpath">{r.path}</span>
+            </span>
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <div class="home2-h">Open a repository</div>
     <div class="home2-sources">

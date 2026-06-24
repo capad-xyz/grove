@@ -3,7 +3,6 @@
   import { listen } from "@tauri-apps/api/event";
   import CommitGraph from "./CommitGraph.svelte";
   import CommitDetail from "./CommitDetail.svelte";
-  import Sidebar from "./Sidebar.svelte";
   import Home from "./Home.svelte";
   import OpenModals from "./OpenModals.svelte";
   import Worktrees from "./Worktrees.svelte";
@@ -191,20 +190,9 @@
   }}
 />
 
-<div class="shell">
-  <Sidebar
-    {recents}
-    activePath={view === "repo" ? path : null}
-    dirty={dirtyMap}
-    onopen={openRepo}
-    onsearch={() => (openMode = "search")}
-    onbrowse={() => (openMode = "browse")}
-    {leaf}
-  />
-  <div class="shell-content">
-    {#if view === "home"}
-      {#if error}<div class="error">{error}</div>{/if}
-      <Home {recents} onbrowse={() => (openMode = "browse")} ongit={() => (openMode = "git")} onsearch={() => (openMode = "search")} />
+{#if view === "home"}
+  {#if error}<div class="error">{error}</div>{/if}
+  <Home {recents} dirty={dirtyMap} onopen={openRepo} onbrowse={() => (openMode = "browse")} ongit={() => (openMode = "git")} onsearch={() => (openMode = "search")} />
     {:else}
       <div class="app">
         <div class="topbar">
@@ -261,9 +249,7 @@
       </div>
     {/if}
       </div>
-    {/if}
-  </div>
-</div>
+{/if}
 
 <OpenModals
   mode={openMode}
