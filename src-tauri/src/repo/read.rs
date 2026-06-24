@@ -4,8 +4,8 @@
 
 use super::write;
 use super::{
-    BlameLine, CommitDetail, CommitNode, DirEntry, DirListing, FileChange, GrepHit, RepoSummary,
-    Worktree,
+    BlameLine, CommitDetail, CommitNode, DirEntry, DirListing, FileChange, FileStatus, GrepHit,
+    RepoSummary, WorkingStatus, Worktree,
 };
 use anyhow::{Context, Result};
 use std::collections::HashMap;
@@ -16,7 +16,7 @@ const FS: char = '\u{1f}';
 const RS: char = '\u{1e}';
 
 /// Resolve the directory to run `git -C` in for a repo at `path`.
-fn workdir_of(path: &str) -> Result<String> {
+pub fn workdir_of(path: &str) -> Result<String> {
     let repo = gix::discover(path).context("not a git repository")?;
     Ok(repo
         .workdir()
@@ -506,6 +506,61 @@ pub fn blame(path: &str, file: &str) -> Result<Vec<BlameLine>> {
         }
     }
     Ok(lines)
+}
+
+/// Working-tree status: staged, unstaged, and untracked files.
+pub fn working_status(path: &str) -> Result<WorkingStatus> {
+    let dir = workdir_of(path)?;
+    let out = write::git(&dir, &["status", "--porcelain", "--untracked-files=all"])?;
+    let mut staged = Vec::new();
+    let mut unstaged = Vec::new();
+    let mut untracked = Vec::new();
+
+    for line in out.lines() {
+        if line.len() < 3 {
+            continue;
+        }
+        let x = &line[0..1];
+        let y = &line[1..2];
+        let rest = &line[3..];
+        // Renames are "old -> new"; the new path is what we act on.
+        let p = rest.rsplit(" -> ").next().unwrap_or(rest).to_string();
+
+        if x == "?" && y == "?" {
+            untracked.push(p);
+            continue;
+        }
+        if x != " " {
+            staged.push(FileStatus { path: p.clone(), status: x.to_string() });
+        }
+        if y != " " {
+            unstaged.push(FileStatus { path: p, status: y.to_string() });
+        }
+    }
+
+    Ok(WorkingStatus {
+        staged,
+        unstaged,
+        untracked,
+        branch: current_branch(&dir),
+    })
+}
+
+/// Diff of one file in the working tree. `staged` selects the index diff.
+pub fn working_diff(path: &str, file: &str, staged: bool) -> Result<String> {
+    let dir = workdir_of(path)?;
+    if staged {
+        write::git(&dir, &["diff", "--cached", "--", file])
+    } else {
+        write::git(&dir, &["diff", "--", file])
+    }
+}
+
+/// Raw contents of a working-tree file (for previewing untracked files).
+pub fn working_file(path: &str, file: &str) -> Result<String> {
+    let dir = workdir_of(path)?;
+    let full = std::path::Path::new(&dir).join(file);
+    Ok(std::fs::read_to_string(full).unwrap_or_default())
 }
 
 /// A porcelain blame header is "<40-hex-sha> <orig> <final> [<count>]".

@@ -2,7 +2,9 @@ mod agent;
 mod repo;
 
 use notify::RecommendedWatcher;
-use repo::{BlameLine, CommitDetail, CommitNode, DirListing, GrepHit, RepoSummary, Worktree};
+use repo::{
+    BlameLine, CommitDetail, CommitNode, DirListing, GrepHit, RepoSummary, WorkingStatus, Worktree,
+};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -113,6 +115,48 @@ fn file_at(path: String, rev: String, file: String) -> Result<String, String> {
 #[tauri::command]
 fn blame(path: String, file: String) -> Result<Vec<BlameLine>, String> {
     repo::read::blame(&path, &file).map_err(|e| e.to_string())
+}
+
+// --- Working tree (source control) ---
+
+#[tauri::command]
+fn working_status(path: String) -> Result<WorkingStatus, String> {
+    repo::read::working_status(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn working_diff(path: String, file: String, staged: bool) -> Result<String, String> {
+    repo::read::working_diff(&path, &file, staged).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn working_file(path: String, file: String) -> Result<String, String> {
+    repo::read::working_file(&path, &file).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn stage_file(path: String, file: String) -> Result<(), String> {
+    repo::write::stage(&path, &file).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn unstage_file(path: String, file: String) -> Result<(), String> {
+    repo::write::unstage(&path, &file).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn stage_all(path: String) -> Result<(), String> {
+    repo::write::stage_all(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn unstage_all(path: String) -> Result<(), String> {
+    repo::write::unstage_all(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn commit_changes(path: String, message: String) -> Result<String, String> {
+    repo::write::commit(&path, &message).map_err(|e| e.to_string())
 }
 
 /// Clone `url` into `~/GroveRepos/<name>` and return the local path.
@@ -256,6 +300,14 @@ pub fn run() {
             file_diff_between,
             file_at,
             blame,
+            working_status,
+            working_diff,
+            working_file,
+            stage_file,
+            unstage_file,
+            stage_all,
+            unstage_all,
+            commit_changes,
             clone_repo,
             watch_repo,
             unwatch_repo,

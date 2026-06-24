@@ -75,6 +75,22 @@ pub struct DirListing {
     pub entries: Vec<DirEntry>,
 }
 
+/// One changed file in the working tree (staged or unstaged group).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FileStatus {
+    pub path: String,
+    pub status: String,
+}
+
+/// The working-tree state: staged, unstaged, and untracked files.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct WorkingStatus {
+    pub staged: Vec<FileStatus>,
+    pub unstaged: Vec<FileStatus>,
+    pub untracked: Vec<String>,
+    pub branch: Option<String>,
+}
+
 /// One line of `git blame` output.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BlameLine {

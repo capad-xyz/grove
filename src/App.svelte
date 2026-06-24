@@ -5,6 +5,7 @@
   import CommitDetail from "./CommitDetail.svelte";
   import Picker from "./Picker.svelte";
   import Worktrees from "./Worktrees.svelte";
+  import Changes from "./Changes.svelte";
   import Spotlight from "./Spotlight.svelte";
   import FileView from "./FileView.svelte";
   import BranchPicker from "./BranchPicker.svelte";
@@ -176,6 +177,7 @@
       {/if}
       <div class="switcher">
         <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>
+        <button class:on={tab === "changes"} onclick={() => (tab = "changes")}>Changes</button>
         <button class:on={tab === "worktrees"} onclick={() => (tab = "worktrees")}>Worktrees</button>
       </div>
       <button class="find-btn" onclick={() => (finderOpen = true)} title="Search files, commits, branches, content">
@@ -194,6 +196,10 @@
             <CommitDetail {path} oid={selected} />
           </div>
         {/if}
+      </div>
+    {:else if tab === "changes"}
+      <div class="body">
+        <Changes {path} tick={liveTick} onchanged={refresh} />
       </div>
     {:else}
       <div class="body">
