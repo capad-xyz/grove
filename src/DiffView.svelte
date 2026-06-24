@@ -1,6 +1,7 @@
 <script>
   // Renders a unified diff with old/new line-number gutters and a single
   // horizontal scroll. Shared by the commit detail panel and the file viewer.
+  import { wrapPref } from "./diffwrap.svelte.js";
   let { patch = "", empty = "No changes." } = $props();
 
   const lines = $derived(parseDiff(patch));
@@ -35,7 +36,7 @@
   }
 </script>
 
-<div class="ddiff">
+<div class="ddiff" class:wrap={wrapPref.on}>
   {#if !lines.length}
     <div class="dloading">{empty}</div>
   {:else}

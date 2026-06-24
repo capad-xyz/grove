@@ -1,6 +1,8 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import DiffView from "./DiffView.svelte";
+  import DiffModal from "./DiffModal.svelte";
+  import WrapToggle from "./WrapToggle.svelte";
   import Copy from "./Copy.svelte";
 
   let { path, oid } = $props();
@@ -11,6 +13,7 @@
   let patch = $state("");
   let diffLoading = $state(false);
   let copied = $state(false);
+  let expand = $state(false);
 
   async function writeClipboard(text) {
     try {
@@ -113,10 +116,18 @@
       </div>
       {#if detail.body}<pre class="dbody">{detail.body}</pre>{/if}
       <div class="dmeta">
-        <span class="dauthor">{detail.author}</span>
-        <span class="demail">{detail.email}<Copy text={detail.email} title="Copy email" /></span>
-        <span class="ddate">{fmtDate(detail.date)}</span>
-        <span class="dhash">{detail.short}<Copy text={detail.id} title="Copy full SHA" /></span>
+        <div class="dm-line">
+          <span class="dm-author">{detail.author}</span>
+          <span class="dm-date">{fmtDate(detail.date)}</span>
+        </div>
+        <div class="dm-line">
+          <span class="dm-email">{detail.email}</span>
+          <Copy text={detail.email} title="Copy email" />
+        </div>
+        <div class="dm-line">
+          <span class="dm-hash">{detail.short}</span>
+          <Copy text={detail.id} title="Copy full SHA" />
+        </div>
       </div>
     </div>
 
@@ -139,6 +150,15 @@
       {/each}
     </div>
 
+    {#if activeFile}
+      <div class="ddiff-head">
+        <span class="ddiff-file" title={activeFile}>{activeFile}</span>
+        <WrapToggle />
+        <button class="ddiff-expand" onclick={() => (expand = true)} title="Open in full view">
+          Expand
+        </button>
+      </div>
+    {/if}
     {#if diffLoading}
       <div class="dloading">Loading diff...</div>
     {:else}
@@ -148,3 +168,14 @@
     <div class="dloading">Loading...</div>
   {/if}
 </div>
+
+{#if expand && activeFile && detail}
+  <DiffModal
+    {path}
+    oid={detail.id}
+    short={detail.short}
+    files={detail.files}
+    file={activeFile}
+    onclose={() => (expand = false)}
+  />
+{/if}

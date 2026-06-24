@@ -20,10 +20,21 @@ fn repo_open(path: String) -> Result<RepoSummary, String> {
     repo::read::open(&path).map_err(|e| e.to_string())
 }
 
-/// Return up to `limit` commits across all refs for the graph view.
+/// Return up to `limit` commits for the graph view. `refspec` filters to a
+/// single branch/ref; omit (or empty) for all refs.
 #[tauri::command]
-fn commit_graph(path: String, limit: u32) -> Result<Vec<CommitNode>, String> {
-    repo::read::graph(&path, limit).map_err(|e| e.to_string())
+fn commit_graph(
+    path: String,
+    limit: u32,
+    refspec: Option<String>,
+) -> Result<Vec<CommitNode>, String> {
+    repo::read::graph(&path, limit, refspec.as_deref()).map_err(|e| e.to_string())
+}
+
+/// Local branch names for the branch filter.
+#[tauri::command]
+fn branches(path: String) -> Result<Vec<String>, String> {
+    repo::read::branches(&path).map_err(|e| e.to_string())
 }
 
 /// Metadata and changed files for one commit.
@@ -219,6 +230,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             repo_open,
             commit_graph,
+            branches,
             commit_detail,
             file_diff,
             list_dir,

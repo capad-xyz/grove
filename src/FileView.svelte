@@ -1,6 +1,7 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
   import DiffView from "./DiffView.svelte";
+  import WrapToggle from "./WrapToggle.svelte";
   import Copy from "./Copy.svelte";
 
   let { path, file, onclose } = $props();
@@ -103,6 +104,7 @@
         <div class="fv-tabs">
           <button class:on={tab === "changes"} onclick={() => (tab = "changes")}>Changes</button>
           <button class:on={tab === "blame"} onclick={showBlame}>Blame</button>
+          {#if tab === "changes"}<span class="fv-tabs-right"><WrapToggle /></span>{/if}
         </div>
 
         {#if tab === "changes"}

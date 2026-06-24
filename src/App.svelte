@@ -22,6 +22,8 @@
   let live = $state(false);
   let liveTick = $state(0);
   let listening = false;
+  let branches = $state([]);
+  let branch = $state(""); // "" = all branches
 
   const repoName = $derived(
     repo?.workdir ? repo.workdir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() : "",
@@ -33,10 +35,12 @@
     tab = "graph";
     finderOpen = false;
     fileView = null;
+    branch = "";
     try {
       repo = await invoke("repo_open", { path: p });
-      commits = await invoke("commit_graph", { path: p, limit: 400 });
+      commits = await invoke("commit_graph", { path: p, limit: 400, refspec: null });
       unpushed = await invoke("unpushed_commits", { path: p }).catch(() => []);
+      branches = await invoke("branches", { path: p }).catch(() => []);
       path = p;
       view = "repo";
       const name = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
@@ -59,11 +63,20 @@
     invoke("unwatch_repo").catch(() => {});
   }
 
+  async function onBranchChange() {
+    selected = null;
+    try {
+      commits = await invoke("commit_graph", { path, limit: 400, refspec: branch || null });
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
   // Re-fetch the repo's data when the watcher reports a change.
   async function refresh() {
     if (view !== "repo" || !path) return;
     try {
-      commits = await invoke("commit_graph", { path, limit: 400 });
+      commits = await invoke("commit_graph", { path, limit: 400, refspec: branch || null });
       unpushed = await invoke("unpushed_commits", { path }).catch(() => []);
       repo = await invoke("repo_open", { path });
       liveTick++; // nudge the worktrees view to reload too
@@ -114,6 +127,12 @@
         <span class="lg filled"></span>pushed
         <span class="lg hollow"></span>local
       </span>
+      {#if branches.length}
+        <select class="branch-select" bind:value={branch} onchange={onBranchChange} title="Filter the graph by branch">
+          <option value="">All branches</option>
+          {#each branches as b}<option value={b}>{b}</option>{/each}
+        </select>
+      {/if}
       <div class="switcher">
         <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>
         <button class:on={tab === "worktrees"} onclick={() => (tab = "worktrees")}>Worktrees</button>

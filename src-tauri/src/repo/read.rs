@@ -44,7 +44,7 @@ pub fn open(path: &str) -> Result<RepoSummary> {
 
 /// Walk the commit graph across all refs, newest first, capped at `limit`.
 /// Returned in topological order so the frontend can assign lanes in one pass.
-pub fn graph(path: &str, limit: u32) -> Result<Vec<CommitNode>> {
+pub fn graph(path: &str, limit: u32, refspec: Option<&str>) -> Result<Vec<CommitNode>> {
     // Resolve to the working dir (or git dir for bare) so `git -C` works.
     let repo = gix::discover(path).context("not a git repository")?;
     let dir = repo
@@ -53,19 +53,35 @@ pub fn graph(path: &str, limit: u32) -> Result<Vec<CommitNode>> {
         .unwrap_or_else(|| repo.git_dir().display().to_string());
 
     let limit = limit.to_string();
+    let fmt = commit_format();
+    // Either all refs, or a single branch/ref's history.
+    let mut args: Vec<&str> = vec!["log"];
+    match refspec {
+        Some(r) if !r.is_empty() => args.push(r),
+        _ => args.push("--all"),
+    }
+    args.extend_from_slice(&["--topo-order", "--decorate=full", "-n", &limit, &fmt]);
+    let out = write::git(&dir, &args)?;
+    Ok(parse_commit_records(&out))
+}
+
+/// Local branch names, most-recently-committed first.
+pub fn branches(path: &str) -> Result<Vec<String>> {
+    let dir = workdir_of(path)?;
     let out = write::git(
         &dir,
         &[
-            "log",
-            "--all",
-            "--topo-order",
-            "--decorate=full",
-            "-n",
-            &limit,
-            &commit_format(),
+            "for-each-ref",
+            "--format=%(refname:short)",
+            "--sort=-committerdate",
+            "refs/heads",
         ],
     )?;
-    Ok(parse_commit_records(&out))
+    Ok(out
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect())
 }
 
 const fn commit_format_str() -> &'static str {
