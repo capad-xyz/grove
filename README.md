@@ -1,16 +1,26 @@
 # Grove
 
-A genuinely free, beautiful, read-first Git client that treats **worktrees as
-first-class**, lets you make **small fixes inline** without opening your IDE,
-and plugs into **whatever AI agent you already run** for commit messages and PR
-drafts. No subscription, no vendor-locked AI.
+A featherweight Git companion that sits beside your AI coding editor and gives
+you the commit, diff, and worktree review surface those editors treat as an
+afterthought. Read-first and beautiful: open any folder and instantly see the
+graph, diffs, stash, status, and every in-flight worktree, refreshing live as
+the agent changes things under you. Make **small fixes inline**, and use
+**whatever AI agent you already run** for commit messages and PR drafts.
+Genuinely free, no subscription, no vendor-locked AI.
 
 > Working name. Easy to rename before the first public push.
 
 ## Why this exists
 
-The Git GUI space is crowded but the genuinely-free, genuinely-beautiful slice
-is nearly empty:
+AI coding editors (Claude, Cursor, Windsurf, and the rest) pour everything into
+the chat-and-agent loop and treat git review as a cramped side panel. But the
+agent generates a huge volume of diffs and commits fast, so the thing you most
+need is a great surface to see and review what it did. The tool creating the
+most diffs has the worst diff UX. Grove is the editor-agnostic companion that
+fills that gap: it works beside any agent, including several at once.
+
+The wider Git GUI space is also crowded, yet the genuinely-free,
+genuinely-beautiful slice is nearly empty:
 
 - GitKraken: paid (~$48/yr), AI is their own paid model, locked in.
 - Tower: paid (~$69-99/yr).
@@ -21,8 +31,9 @@ is nearly empty:
 
 Grove's wedge is the combination almost nobody does well:
 
-1. **Worktree-first.** Most clients treat worktrees as an afterthought or
-   ignore them. Grove makes the worktree dashboard a hero surface.
+1. **Worktree-first.** Most clients ignore worktrees, yet parallel agents and
+   one-worktree-per-task workflows are fast becoming how people run multiple
+   agents at once. Grove makes the worktree dashboard a hero surface.
 2. **Read-first, edit-light.** Open any folder and instantly get a gorgeous
    graph, blame, stash, and status. Make small fixes inline. It does not try to
    replace your editor.
@@ -47,4 +58,4 @@ See [DESIGN.md](DESIGN.md) for the architecture and decisions.
 
 ## License
 
-MIT. Free as in actually free.
+GPL-3.0. Free as in actually free, and forks stay open.

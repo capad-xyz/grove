@@ -5,14 +5,24 @@ v0 scope. It is the source of truth until the code outgrows it.
 
 ## 1. Thesis
 
-A genuinely free, beautiful, read-first Git client where worktrees are
-first-class, small fixes happen inline, and the AI for commit/PR text is
-whatever agent the user already runs.
+A featherweight, genuinely free Git companion that sits beside an AI coding
+editor and provides the commit/diff/worktree review surface those editors treat
+as an afterthought. Read-first and beautiful, editor-agnostic (works beside any
+agent, or several at once), with small inline fixes and bring-your-own agent for
+commit/PR text.
+
+The framing matters: this is not a GitKraken competitor, it is the git review
+surface for the agentic coding era. The tool generating the most diffs (the
+agent editor) has the worst diff UX, and Grove fills that gap from the outside.
+Every feature must pass the test: would I keep this window open beside my editor
+while coding?
 
 Three pillars, in priority order:
 
-1. Beautiful read experience (graph, blame, stash, status) on any folder.
-2. Worktree dashboard as a first-class surface.
+1. Beautiful read-and-review experience (graph, diffs, stash, status) that
+   refreshes live as the agent changes the repo under you.
+2. Worktree dashboard as a first-class surface, increasingly central as people
+   run parallel agents with one worktree per task.
 3. Bring-your-own agent for commit messages and PR drafts.
 
 Non-goals (deliberate, to avoid the "another full client" trap):
@@ -32,7 +42,7 @@ Non-goals (deliberate, to avoid the "another full client" trap):
 | Commit graph  | Custom canvas/SVG               | The visual is the differentiator |
 | Inline edit   | Monaco, small-fix scope         | Familiar, syntax highlighting, but not an IDE |
 | Agent layer   | One interface, two backends     | Local CLI and BYO API key from day one |
-| License       | MIT                             | "Genuinely free" is the brand promise |
+| License       | GPL-3.0                         | Free and forks stay open; AGPL's network clause is moot for a desktop app |
 
 ### The hybrid Git engine, explained
 
@@ -119,8 +129,14 @@ clone."
 In:
 
 - Open a folder, validate it is a Git repo.
+- Live refresh: file-watch the repo and update graph/status/diffs as the agent
+  changes things under you. Core, not optional, because the repo mutates
+  constantly while an agent works.
 - Commit graph: custom renderer, paginated, virtualized for large histories.
 - Worktree dashboard: list, status, one-click switch, create, prune.
+- Diff review as the hero UX: keyboard next/prev change, stage/unstage hunks,
+  and an "everything since I last looked" view. This is the thing the agent
+  editors do badly, so it has to be excellent.
 - Commit detail + diff view.
 - Stash list + push/pop.
 - Agent panel: generate a commit message from the staged diff, using either a
@@ -147,3 +163,7 @@ Out (deliberately deferred):
 - Git engine: gix for reads + git CLI for writes (hybrid, by operation type).
 - Graph: custom canvas/SVG over a JS graph library, for full control of look.
 - Agent: both local-CLI and API-key backends from day one, behind one trait.
+- License: GPL-3.0 (copyleft to stop proprietary forks; AGPL rejected because
+  its network clause does nothing for a desktop app).
+- Positioning: reframed as a companion to AI coding editors, not a general Git
+  client. Live refresh and diff navigation promoted to core v0 requirements.
