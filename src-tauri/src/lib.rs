@@ -135,10 +135,16 @@ fn recent_repos(app: tauri::AppHandle) -> Vec<RecentRepo> {
     read_recents(&app)
 }
 
+/// Normalize a path for comparison so "C:\\x" and "C:/x/" dedupe as one.
+fn norm_path(p: &str) -> String {
+    p.replace('\\', "/").trim_end_matches('/').to_string()
+}
+
 #[tauri::command]
 fn add_recent_repo(app: tauri::AppHandle, path: String, name: String) -> Vec<RecentRepo> {
+    let path = norm_path(&path);
     let mut list = read_recents(&app);
-    list.retain(|r| r.path != path);
+    list.retain(|r| !norm_path(&r.path).eq_ignore_ascii_case(&path));
     list.insert(0, RecentRepo { path, name });
     list.truncate(10);
     if let Ok(p) = recents_path(&app) {
