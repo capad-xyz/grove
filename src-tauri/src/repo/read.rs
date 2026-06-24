@@ -556,6 +556,12 @@ pub fn working_diff(path: &str, file: &str, staged: bool) -> Result<String> {
     }
 }
 
+/// The full staged diff (`git diff --cached`), for agent commit messages.
+pub fn staged_diff(path: &str) -> Result<String> {
+    let dir = workdir_of(path)?;
+    write::git(&dir, &["diff", "--cached"])
+}
+
 /// Raw contents of a working-tree file (for previewing untracked files).
 pub fn working_file(path: &str, file: &str) -> Result<String> {
     let dir = workdir_of(path)?;

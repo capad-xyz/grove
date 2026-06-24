@@ -1742,6 +1742,36 @@ kbd {
   background: var(--bg);
   border-top: 1px solid var(--line);
 }
+.ch-commit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.ch-gen {
+  padding: 4px 11px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 7px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+.ch-gen:hover:not(:disabled) {
+  background: rgba(224, 134, 95, 0.2);
+}
+.ch-gen:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
 .ch-commit textarea {
   width: 100%;
   resize: vertical;

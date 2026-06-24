@@ -16,6 +16,19 @@
 
   let message = $state("");
   let committing = $state(false);
+  let generating = $state(false);
+
+  async function generate() {
+    generating = true;
+    error = "";
+    try {
+      message = await invoke("generate_commit_message", { path });
+    } catch (e) {
+      error = String(e);
+    } finally {
+      generating = false;
+    }
+  }
 
   const statusLabel = { M: "modified", A: "added", D: "deleted", R: "renamed", C: "copied", "?": "untracked" };
 
@@ -181,7 +194,13 @@
 
     {#if status?.staged.length}
       <div class="ch-commit">
-        <textarea bind:value={message} placeholder="Commit message" rows="3" spellcheck="false"></textarea>
+        <div class="ch-commit-head">
+          <span>Commit message</span>
+          <button class="ch-gen" onclick={generate} disabled={generating} title="Generate a message from the staged diff with your local agent">
+            {generating ? "Generating..." : "Generate with agent"}
+          </button>
+        </div>
+        <textarea bind:value={message} placeholder="Write a message, or generate one from the staged diff" rows="3" spellcheck="false"></textarea>
         <button class="ch-commitbtn" disabled={!canCommit} onclick={commit}>
           {committing ? "Committing..." : `Commit ${status.staged.length} file${status.staged.length === 1 ? "" : "s"}`}
         </button>

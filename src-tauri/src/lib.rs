@@ -159,6 +159,16 @@ fn commit_changes(path: String, message: String) -> Result<String, String> {
     repo::write::commit(&path, &message).map_err(|e| e.to_string())
 }
 
+/// Generate a commit message from the staged diff using a local CLI agent.
+#[tauri::command]
+fn generate_commit_message(path: String) -> Result<String, String> {
+    let diff = repo::read::staged_diff(&path).map_err(|e| e.to_string())?;
+    if diff.trim().is_empty() {
+        return Err("Stage some changes first.".into());
+    }
+    agent::generate_message(&diff, None).map_err(|e| e.to_string())
+}
+
 /// Clone `url` into `~/GroveRepos/<name>` and return the local path.
 #[tauri::command]
 fn clone_repo(url: String) -> Result<String, String> {
@@ -308,6 +318,7 @@ pub fn run() {
             stage_all,
             unstage_all,
             commit_changes,
+            generate_commit_message,
             clone_repo,
             watch_repo,
             unwatch_repo,
