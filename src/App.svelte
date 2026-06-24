@@ -28,6 +28,7 @@
   let listening = false;
   let branches = $state([]);
   let branch = $state(""); // "" = all branches
+  let headDirty = $state(false); // open repo has uncommitted changes
   let detailWidth = $state(520); // resizable detail/diff pane
 
   // Persistent sidebar: recent repos + per-repo dirty state + open-flow modals.
@@ -125,6 +126,7 @@
       invoke("watch_repo", { path: p })
         .then(() => (live = true))
         .catch(() => (live = false));
+      invoke("repo_dirty", { path: p }).then((d) => (headDirty = d)).catch(() => {});
       loadFiles(p);
       openMode = null;
       loadRecents();
@@ -159,6 +161,7 @@
       commits = await invoke("commit_graph", { path, limit: 400, refspec: branch || null });
       unpushed = await invoke("unpushed_commits", { path }).catch(() => []);
       repo = await invoke("repo_open", { path });
+      invoke("repo_dirty", { path }).then((d) => (headDirty = d)).catch(() => {});
       invoke("list_files", { path }).then(addFiles).catch(() => {}); // pick up new files
       liveTick++; // nudge the worktrees view to reload too
     } catch {}
@@ -239,7 +242,7 @@
     {#if tab === "graph"}
       <div class="body">
         <div class="graph-pane">
-          <CommitGraph {commits} {selected} {unpushed} onselect={(id) => (selected = id)} />
+          <CommitGraph {commits} {selected} {unpushed} dirty={headDirty} onwip={() => (tab = "changes")} onselect={(id) => (selected = id)} />
         </div>
         {#if selected}
           <div class="resizer" onmousedown={startResize} title="Drag to resize"></div>

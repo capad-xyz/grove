@@ -416,20 +416,48 @@ pub fn all_files(path: &str) -> Result<Vec<String>> {
     Ok(set.into_iter().collect())
 }
 
-/// Commits across all refs whose message matches `query` (case-insensitive).
+/// Commits across all refs matching `query` by hash, message, or author.
 pub fn search_commits(path: &str, query: &str) -> Result<Vec<CommitNode>> {
-    if query.trim().is_empty() {
+    let q = query.trim();
+    if q.is_empty() {
         return Ok(vec![]);
     }
     let dir = workdir_of(path)?;
     let fmt = commit_format();
-    let grep = format!("--grep={query}");
-    let out = write::git(
-        &dir,
-        &["log", "--all", "-i", &grep, "-n", "40", "--topo-order", &fmt],
-    )
-    .unwrap_or_default();
-    Ok(parse_commit_records(&out))
+    let mut seen = std::collections::HashSet::new();
+    let mut nodes: Vec<CommitNode> = Vec::new();
+    let take = |out: String, seen: &mut std::collections::HashSet<String>, nodes: &mut Vec<CommitNode>| {
+        for c in parse_commit_records(&out) {
+            if seen.insert(c.id.clone()) {
+                nodes.push(c);
+            }
+        }
+    };
+
+    // 1. Hash lookup: a full or abbreviated SHA should jump straight to the
+    //    commit. `--grep` never matches a commit's own id, so handle it first.
+    let is_hex = q.len() >= 4 && q.len() <= 40 && q.chars().all(|c| c.is_ascii_hexdigit());
+    if is_hex {
+        if let Ok(oid) = write::git(&dir, &["rev-parse", "--verify", "--quiet", &format!("{q}^{{commit}}")]) {
+            let oid = oid.trim().to_string();
+            if !oid.is_empty() {
+                let out = write::git(&dir, &["log", "-n", "1", "--topo-order", &fmt, &oid]).unwrap_or_default();
+                take(out, &mut seen, &mut nodes);
+            }
+        }
+    }
+
+    // 2. Commit message match.
+    let grep = format!("--grep={q}");
+    let out = write::git(&dir, &["log", "--all", "-i", &grep, "-n", "40", "--topo-order", &fmt]).unwrap_or_default();
+    take(out, &mut seen, &mut nodes);
+
+    // 3. Author name / email match.
+    let author = format!("--author={q}");
+    let out = write::git(&dir, &["log", "--all", "-i", &author, "-n", "20", "--topo-order", &fmt]).unwrap_or_default();
+    take(out, &mut seen, &mut nodes);
+
+    Ok(nodes)
 }
 
 /// Commits that touched `file`, newest first.

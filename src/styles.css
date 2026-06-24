@@ -51,8 +51,12 @@ body {
   overflow: hidden;
   font-size: 13.5px;
 }
-button {
+button,
+input,
+textarea,
+select {
   font-family: inherit;
+  outline: none;
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -1284,12 +1288,14 @@ button {
   cursor: pointer;
   font-size: 13px;
   position: relative;
+  outline: none;
+  border-radius: 6px;
 }
 .graph .row:hover {
-  background: var(--surface-2);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 60%);
 }
 .graph .row.selected {
-  background: var(--accent-soft);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 75%);
 }
 .graph .row.selected::before {
   content: "";
@@ -1332,6 +1338,16 @@ button {
   background: rgba(216, 166, 87, 0.13);
   border-color: rgba(216, 166, 87, 0.36);
   color: var(--gold);
+}
+.graph .pill.wip {
+  background: rgba(217, 135, 99, 0.14);
+  border-color: rgba(217, 135, 99, 0.42);
+  color: var(--clay, #d98763);
+  letter-spacing: 0.04em;
+}
+.graph .row.wip-row .summary {
+  color: var(--muted);
+  font-style: italic;
 }
 .graph .summary {
   flex: 1;

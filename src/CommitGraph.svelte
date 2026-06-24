@@ -2,7 +2,7 @@
   // Renders a commit graph: an SVG of lanes/nodes on the left, aligned with a
   // column of commit rows on the right. Lane layout is computed here in one
   // pass over the topologically-ordered commits from the Rust side.
-  let { commits = [], selected = null, onselect = () => {}, unpushed = [] } = $props();
+  let { commits = [], selected = null, onselect = () => {}, unpushed = [], dirty = false, onwip = () => {} } = $props();
   const unpushedSet = $derived(new Set(unpushed));
 
   import Copy from "./Copy.svelte";
@@ -79,12 +79,17 @@
       placed.push({ commit: c, lane, parentLanes, i });
     }
 
+    // When the working tree is dirty, reserve the top row for a WIP node that
+    // sits on HEAD's lane and feeds down into it. Everything else shifts down.
+    const off = dirty && commits.length ? 1 : 0;
+    const yy = (i) => ROW / 2 + (i + off) * ROW;
+
     const laneCount = maxLane + 1;
-    const height = commits.length * ROW;
+    const height = (commits.length + off) * ROW;
     const edges = [];
     for (const r of placed) {
       const x1 = x(r.lane);
-      const y1 = y(r.i);
+      const y1 = yy(r.i);
       r.commit.parents.forEach((p, pi) => {
         const pl = r.parentLanes[pi];
         const x2 = x(pl);
@@ -94,7 +99,7 @@
           // Parent outside the loaded window: trail off the bottom.
           edges.push({ d: `M ${x1} ${y1} L ${x2} ${height}`, color });
         } else {
-          const y2 = y(j);
+          const y2 = yy(j);
           const d =
             x1 === x2
               ? `M ${x1} ${y1} L ${x2} ${y2}`
@@ -106,13 +111,21 @@
 
     const nodes = placed.map((r) => ({
       x: x(r.lane),
-      y: y(r.i),
+      y: yy(r.i),
       color: laneColor(r.lane),
       commit: r.commit,
     }));
 
+    // The WIP node + its connector into HEAD (the first placed commit).
+    let wip = null;
+    if (off) {
+      const headLane = placed[0].lane;
+      const wx = x(headLane);
+      wip = { x: wx, y: ROW / 2, edge: `M ${wx} ${ROW / 2} L ${wx} ${yy(0)}`, color: laneColor(headLane) };
+    }
+
     const width = PAD + laneCount * LANE + PAD;
-    return { nodes, edges, width, height };
+    return { nodes, edges, width, height, wip };
   });
 
   function rel(epoch) {
@@ -146,6 +159,10 @@
     {#each layout.edges as e}
       <path d={e.d} stroke={e.color} fill="none" stroke-width="2" />
     {/each}
+    {#if layout.wip}
+      <path d={layout.wip.edge} stroke={layout.wip.color} fill="none" stroke-width="2" stroke-dasharray="3 3" opacity="0.8" />
+      <circle cx={layout.wip.x} cy={layout.wip.y} r={R} fill="#121317" stroke={layout.wip.color} stroke-width="2" stroke-dasharray="2.4 2.2" />
+    {/if}
     {#each layout.nodes as n}
       {#if n.commit.id === selected}
         <circle cx={n.x} cy={n.y} r={R + 3.5} fill="none" stroke={n.color} stroke-width="2" opacity="0.55" />
@@ -160,6 +177,13 @@
   </svg>
 
   <div class="rows">
+    {#if dirty && commits.length}
+      <button class="row wip-row" onclick={onwip} title="Review uncommitted changes">
+        <span class="refs"><span class="pill wip">working</span></span>
+        <span class="summary">Uncommitted changes</span>
+        <span class="meta"><span class="time">now</span></span>
+      </button>
+    {/if}
     {#each commits as c}
       <button
         class="row"
