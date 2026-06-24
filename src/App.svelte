@@ -3,7 +3,9 @@
   import { listen } from "@tauri-apps/api/event";
   import CommitGraph from "./CommitGraph.svelte";
   import CommitDetail from "./CommitDetail.svelte";
-  import Picker from "./Picker.svelte";
+  import Sidebar from "./Sidebar.svelte";
+  import Home from "./Home.svelte";
+  import OpenModals from "./OpenModals.svelte";
   import Worktrees from "./Worktrees.svelte";
   import Changes from "./Changes.svelte";
   import Spotlight from "./Spotlight.svelte";
@@ -27,6 +29,31 @@
   let branches = $state([]);
   let branch = $state(""); // "" = all branches
   let detailWidth = $state(520); // resizable detail/diff pane
+
+  // Persistent sidebar: recent repos + per-repo dirty state + open-flow modals.
+  let recents = $state([]);
+  let dirtyMap = $state({});
+  let openMode = $state(null); // null | "browse" | "git" | "search"
+  let recentsLoaded = false;
+
+  function loadRecents() {
+    invoke("recent_repos")
+      .then((r) => {
+        recents = r;
+        for (const repo of r) {
+          invoke("repo_dirty", { path: repo.path })
+            .then((d) => (dirtyMap = { ...dirtyMap, [repo.path]: d }))
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }
+
+  $effect(() => {
+    if (recentsLoaded) return;
+    recentsLoaded = true;
+    loadRecents();
+  });
 
   function startResize(e) {
     e.preventDefault();
@@ -99,6 +126,8 @@
         .then(() => (live = true))
         .catch(() => (live = false));
       loadFiles(p);
+      openMode = null;
+      loadRecents();
     } catch (e) {
       error = String(e);
       view = "home";
@@ -151,28 +180,31 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if (
-      view === "repo" &&
-      (e.ctrlKey || e.metaKey) &&
-      (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p")
-    ) {
+    if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p")) {
       e.preventDefault();
-      finderOpen = true;
+      if (view === "repo") finderOpen = true;
+      else openMode = "search";
     }
   }}
 />
 
-{#if view === "home"}
-  <div class="app">
-    {#if error}<div class="error">{error}</div>{/if}
-    <Picker onopen={openRepo} {leaf} />
-  </div>
-{:else}
-  <div class="app">
-    <div class="topbar">
-      <button class="brand-btn" onclick={backToPicker} title="Open another repository">
-        {@render leaf()} Grove
-      </button>
+<div class="shell">
+  <Sidebar
+    {recents}
+    activePath={view === "repo" ? path : null}
+    dirty={dirtyMap}
+    onopen={openRepo}
+    onsearch={() => (openMode = "search")}
+    onbrowse={() => (openMode = "browse")}
+    {leaf}
+  />
+  <div class="shell-content">
+    {#if view === "home"}
+      {#if error}<div class="error">{error}</div>{/if}
+      <Home {recents} onbrowse={() => (openMode = "browse")} ongit={() => (openMode = "git")} onsearch={() => (openMode = "search")} />
+    {:else}
+      <div class="app">
+        <div class="topbar">
       <div class="repo-chip">
         <span class="name">{repoName}<Copy text={repo.workdir ?? path} title="Copy repo path" /></span>
         {#if repo.head}<span class="branch">{@render leaf()}{repo.head}<Copy text={repo.head} title="Copy branch name" /></span>{/if}
@@ -225,8 +257,18 @@
         <Worktrees {path} onopen={openRepo} tick={liveTick} />
       </div>
     {/if}
+      </div>
+    {/if}
   </div>
-{/if}
+</div>
+
+<OpenModals
+  mode={openMode}
+  {recents}
+  onopen={openRepo}
+  onclose={() => (openMode = null)}
+  onmode={(m) => (openMode = m)}
+/>
 
 {#if finderOpen}
   <Spotlight

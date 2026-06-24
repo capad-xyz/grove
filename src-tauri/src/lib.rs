@@ -159,6 +159,12 @@ fn commit_changes(path: String, message: String) -> Result<String, String> {
     repo::write::commit(&path, &message).map_err(|e| e.to_string())
 }
 
+/// Whether a repo has uncommitted changes (for the sidebar).
+#[tauri::command]
+fn repo_dirty(path: String) -> bool {
+    repo::read::is_dirty(&path).unwrap_or(false)
+}
+
 /// Generate a commit message from the staged diff using a local CLI agent.
 #[tauri::command]
 fn generate_commit_message(path: String) -> Result<String, String> {
@@ -319,6 +325,7 @@ pub fn run() {
             unstage_all,
             commit_changes,
             generate_commit_message,
+            repo_dirty,
             clone_repo,
             watch_repo,
             unwatch_repo,

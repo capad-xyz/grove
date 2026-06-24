@@ -151,22 +151,24 @@
       {/each}
     </div>
 
-    {#if activeFile}
-      <div class="ddiff-head">
-        <span class="ddiff-file" title={activeFile}>{activeFile}</span>
-        <WrapToggle />
-        <button class="ddiff-expand" onclick={() => (expand = true)} title="Open in full view">
-          Expand
-        </button>
-      </div>
-    {/if}
-    {#if diffLoading}
-      <div class="sk-diff">
-        <Skeleton lines={12} h="12px" gap="9px" widths={["92%", "70%", "84%", "58%", "76%", "48%", "88%", "64%", "40%", "80%", "66%", "52%"]} />
-      </div>
-    {:else}
-      <DiffView {patch} file={activeFile} />
-    {/if}
+    <div class="detail-diff-area">
+      {#if activeFile}
+        <div class="ddiff-head">
+          <span class="ddiff-file" title={activeFile}>{activeFile}</span>
+          <WrapToggle />
+          <button class="ddiff-expand" onclick={() => (expand = true)} title="Open in full view">
+            Expand
+          </button>
+        </div>
+      {/if}
+      {#if diffLoading}
+        <div class="sk-diff">
+          <Skeleton lines={12} h="12px" gap="9px" widths={["92%", "70%", "84%", "58%", "76%", "48%", "88%", "64%", "40%", "80%", "66%", "52%"]} />
+        </div>
+      {:else}
+        <DiffView {patch} file={activeFile} />
+      {/if}
+    </div>
   {:else}
     <div class="dhead">
       <Skeleton w="82%" h="16px" />

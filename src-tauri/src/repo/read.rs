@@ -556,6 +556,13 @@ pub fn working_diff(path: &str, file: &str, staged: bool) -> Result<String> {
     }
 }
 
+/// Whether the working tree has any changes (for the sidebar dirty dot).
+pub fn is_dirty(path: &str) -> Result<bool> {
+    let dir = workdir_of(path)?;
+    let out = write::git(&dir, &["status", "--porcelain"])?;
+    Ok(!out.trim().is_empty())
+}
+
 /// The full staged diff (`git diff --cached`), for agent commit messages.
 pub fn staged_diff(path: &str) -> Result<String> {
     let dir = workdir_of(path)?;
