@@ -10,6 +10,8 @@
   import Spotlight from "./Spotlight.svelte";
   import FileView from "./FileView.svelte";
   import BranchPicker from "./BranchPicker.svelte";
+  import NavHub from "./NavHub.svelte";
+  import Skeleton from "./Skeleton.svelte";
   import Copy from "./Copy.svelte";
 
   let view = $state("home"); // "home" | "repo"
@@ -30,6 +32,57 @@
   let headDirty = $state(false); // open repo has uncommitted changes
   let lastRepoPath = $state(""); // for forward-nav (Ctrl+Right) after going home
   let detailWidth = $state(520); // resizable detail/diff pane
+  let commitsLoading = $state(false); // graph is fetching commits
+
+  // Browser-style navigation history across home + repos (drives the NavHub).
+  let navStack = $state([{ view: "home" }]);
+  let navIndex = $state(0);
+  let navSuppress = false; // true while applying a back/forward jump
+
+  function recordLoc(loc) {
+    if (navSuppress) return;
+    const top = navStack[navIndex];
+    if (top && top.view === loc.view && top.path === loc.path) return;
+    const base = navStack.slice(0, navIndex + 1);
+    base.push(loc);
+    navStack = base;
+    navIndex = base.length - 1;
+  }
+
+  function enterHome() {
+    if (path) lastRepoPath = path;
+    view = "home";
+    selected = null;
+    finderOpen = false;
+    fileView = null;
+    live = false;
+    invoke("unwatch_repo").catch(() => {});
+  }
+
+  async function applyLoc(loc) {
+    navSuppress = true;
+    try {
+      if (loc.view === "home") enterHome();
+      else await openRepo(loc.path);
+    } finally {
+      navSuppress = false;
+    }
+  }
+  function goBack() {
+    if (navIndex <= 0) return;
+    navIndex -= 1;
+    applyLoc(navStack[navIndex]);
+  }
+  function goForward() {
+    if (navIndex >= navStack.length - 1) return;
+    navIndex += 1;
+    applyLoc(navStack[navIndex]);
+  }
+  function jumpTo(i) {
+    if (i < 0 || i >= navStack.length || i === navIndex) return;
+    navIndex = i;
+    applyLoc(navStack[i]);
+  }
 
   // Persistent sidebar: recent repos + per-repo dirty state + open-flow modals.
   let recents = $state([]);
@@ -114,36 +167,38 @@
     branch = "";
     knownPaths = new Set();
     fileIndex = [];
+    const name = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
     try {
+      // Open is fast; show the repo shell straight away, then stream the
+      // (slower) graph behind a skeleton instead of freezing on the old view.
       repo = await invoke("repo_open", { path: p });
-      commits = await invoke("commit_graph", { path: p, limit: 400, refspec: null });
-      unpushed = await invoke("unpushed_commits", { path: p }).catch(() => []);
-      branches = await invoke("branches", { path: p }).catch(() => []);
       path = p;
       view = "repo";
-      const name = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+      commits = [];
+      commitsLoading = true;
+      openMode = null;
+      recordLoc({ view: "repo", path: p, name });
+      commits = await invoke("commit_graph", { path: p, limit: 400, refspec: null });
+      commitsLoading = false;
+      unpushed = await invoke("unpushed_commits", { path: p }).catch(() => []);
+      branches = await invoke("branches", { path: p }).catch(() => []);
       invoke("add_recent_repo", { path: p, name }).catch(() => {});
       invoke("watch_repo", { path: p })
         .then(() => (live = true))
         .catch(() => (live = false));
       invoke("repo_dirty", { path: p }).then((d) => (headDirty = d)).catch(() => {});
       loadFiles(p);
-      openMode = null;
       loadRecents();
     } catch (e) {
       error = String(e);
       view = "home";
+      commitsLoading = false;
     }
   }
 
   function backToPicker() {
-    if (path) lastRepoPath = path;
-    view = "home";
-    selected = null;
-    finderOpen = false;
-    fileView = null;
-    live = false;
-    invoke("unwatch_repo").catch(() => {});
+    enterHome();
+    recordLoc({ view: "home" });
   }
 
   async function onBranchChange() {
@@ -189,27 +244,20 @@
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p")) {
       e.preventDefault();
-      if (view === "repo") finderOpen = true;
-      else openMode = "search";
+      finderOpen = true;
     } else if (mod && !typing && e.key === "ArrowLeft") {
-      // Back: leave the repo for the home launcher.
-      if (view === "repo") {
-        e.preventDefault();
-        backToPicker();
-      }
+      e.preventDefault();
+      goBack();
     } else if (mod && !typing && e.key === "ArrowRight") {
-      // Forward: reopen the repo we just stepped back from.
-      if (view === "home" && lastRepoPath) {
-        e.preventDefault();
-        openRepo(lastRepoPath);
-      }
+      e.preventDefault();
+      goForward();
     }
   }}
 />
 
 {#if view === "home"}
   {#if error}<div class="error">{error}</div>{/if}
-  <Home {recents} dirty={dirtyMap} onopen={openRepo} onbrowse={() => (openMode = "browse")} ongit={() => (openMode = "git")} onsearch={() => (openMode = "search")} />
+  <Home {recents} dirty={dirtyMap} onopen={openRepo} onbrowse={() => (openMode = "browse")} ongit={() => (openMode = "git")} onsearch={() => (finderOpen = true)} />
     {:else}
       <div class="app">
         <div class="topbar">
@@ -253,9 +301,20 @@
     {#if tab === "graph"}
       <div class="body">
         <div class="graph-pane">
-          <CommitGraph {commits} {selected} {unpushed} dirty={headDirty} onwip={() => (tab = "changes")} onselect={(id) => (selected = id)} />
+          {#if commitsLoading}
+            <div class="graph-skel">
+              {#each Array(14) as _, i}
+                <div class="gs-row">
+                  <span class="gs-node"></span>
+                  <Skeleton w={`${64 - (i % 5) * 7}%`} h="13px" />
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <CommitGraph {commits} {selected} {unpushed} dirty={headDirty} onwip={() => (tab = "changes")} onselect={(id) => (selected = id)} />
+          {/if}
         </div>
-        {#if selected}
+        {#if selected && !commitsLoading}
           <div class="resizer" onmousedown={startResize} title="Drag to resize"></div>
           <div class="detail-pane" style="width:{detailWidth}px">
             <CommitDetail {path} oid={selected} />
@@ -264,15 +323,17 @@
       </div>
     {:else if tab === "changes"}
       <div class="body">
-        <Changes {path} tick={liveTick} onchanged={refresh} />
+        <div class="pane"><Changes {path} tick={liveTick} onchanged={refresh} /></div>
       </div>
     {:else}
       <div class="body">
-        <Worktrees {path} onopen={openRepo} tick={liveTick} />
+        <div class="pane"><Worktrees {path} onopen={openRepo} tick={liveTick} /></div>
       </div>
     {/if}
       </div>
 {/if}
+
+<NavHub stack={navStack} index={navIndex} onback={goBack} onforward={goForward} onjump={jumpTo} />
 
 <OpenModals
   mode={openMode}
@@ -284,12 +345,17 @@
 
 {#if finderOpen}
   <Spotlight
+    scope={view === "repo" ? "repo" : "projects"}
     {path}
     {branches}
     {fileIndex}
+    {recents}
     onfile={(f) => { fileView = f; finderOpen = false; }}
     oncommit={(oid) => { selected = oid; tab = "graph"; finderOpen = false; }}
     onbranch={(b) => { branch = b; onBranchChange(); finderOpen = false; }}
+    onopen={(p) => { finderOpen = false; openRepo(p); }}
+    onbrowse={() => { finderOpen = false; openMode = "browse"; }}
+    ongit={() => { finderOpen = false; openMode = "git"; }}
     onclose={() => (finderOpen = false)}
   />
 {/if}

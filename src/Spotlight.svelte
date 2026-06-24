@@ -6,7 +6,24 @@
   // messages, branches, and file contents. `fileIndex` is precomputed by the
   // parent (path + lowercased path + lowercased basename) so fuzzy matching per
   // keystroke is pure comparison with no per-file allocation.
-  let { path, branches = [], fileIndex = [], onfile, oncommit, onbranch, onclose } = $props();
+  // One spotlight for the whole app. scope "repo" searches inside the open
+  // repository (files / commits / branches / content); scope "projects" (home)
+  // searches recent projects and the open-a-repo actions. Same chrome, slightly
+  // different dress per scope.
+  let {
+    scope = "repo",
+    path,
+    branches = [],
+    fileIndex = [],
+    recents = [],
+    onfile,
+    oncommit,
+    onbranch,
+    onopen,
+    onbrowse,
+    ongit,
+    onclose,
+  } = $props();
 
   let query = $state("");
   let commitHits = $state([]);
@@ -28,6 +45,9 @@
     commit: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3.2"/><path d="M3 12h5.8M15.2 12H21"/></svg>`,
     branch: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.3"/><circle cx="6" cy="18" r="2.3"/><circle cx="18" cy="8" r="2.3"/><path d="M6 8.3v7.4M8.2 7 15.6 7.7M18 10.3c0 4-3 4.5-6 4.5"/></svg>`,
     content: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.3-4.3"/></svg>`,
+    repo: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.3"/><circle cx="6" cy="18" r="2.3"/><circle cx="18" cy="9" r="2.3"/><path d="M6 8.3v7.4M8.2 7.1 15.6 8.6"/></svg>`,
+    folder: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+    git: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.5 13.5a4 4 0 0 0 5.7 0l2-2a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2 2a4 4 0 0 0 5.7 5.7l1-1"/></svg>`,
   };
 
   // Fuzzy subsequence match over the precomputed index. Stops scanning a path
@@ -58,19 +78,33 @@
 
   const q = $derived(query.trim());
   const ql = $derived(q.toLowerCase());
-  const branchMatches = $derived(q ? branches.filter((b) => b.toLowerCase().includes(ql)).slice(0, 6) : []);
-  const fileMatches = $derived(fuzzy(fileIndex, ql));
+  const branchMatches = $derived(scope === "repo" && q ? branches.filter((b) => b.toLowerCase().includes(ql)).slice(0, 6) : []);
+  const fileMatches = $derived(scope === "repo" ? fuzzy(fileIndex, ql) : []);
+
+  // Projects scope: filter recent repos, plus the two open-a-repo actions.
+  const projectMatches = $derived.by(() => {
+    if (scope !== "projects") return [];
+    const list = recents
+      .filter((r) => !ql || r.name.toLowerCase().includes(ql) || r.path.toLowerCase().includes(ql))
+      .map((r) => ({ kind: "repo", name: r.name, sub: r.path, path: r.path }));
+    const actions = [
+      { kind: "browse", name: "Open a folder", sub: "Browse a local repository" },
+      { kind: "git", name: "Clone from Git URL", sub: "Clone a remote repository" },
+    ].filter((a) => !ql || a.name.toLowerCase().includes(ql));
+    return [...list, ...actions];
+  });
 
   const offFiles = $derived(branchMatches.length);
   const offCommits = $derived(offFiles + fileMatches.length);
   const offContent = $derived(offCommits + commitHits.length);
-  const total = $derived(offContent + contentHits.length);
+  const total = $derived(scope === "projects" ? projectMatches.length : offContent + contentHits.length);
 
   $effect(() => {
     if (highlight >= total) highlight = Math.max(0, total - 1);
   });
 
   $effect(() => {
+    if (scope !== "repo") return;
     const term = query;
     clearTimeout(timer);
     if (!term.trim()) {
@@ -123,6 +157,14 @@
   });
 
   function selectAt(i) {
+    if (scope === "projects") {
+      const it = projectMatches[i];
+      if (!it) return;
+      if (it.kind === "repo") onopen(it.path);
+      else if (it.kind === "browse") onbrowse();
+      else if (it.kind === "git") ongit();
+      return;
+    }
     if (i < offFiles) onbranch(branchMatches[i]);
     else if (i < offCommits) onfile(fileMatches[i - offFiles]);
     else if (i < offContent) oncommit(commitHits[i - offCommits].id);
@@ -149,20 +191,31 @@
 </script>
 
 <div class="gx-modal-bg" onclick={onclose}>
-  <div class="sp" onclick={(e) => e.stopPropagation()}>
+  <div class="sp" class:projects={scope === "projects"} onclick={(e) => e.stopPropagation()}>
     <div class="sp-search">
-      <span class="sp-sic">{@html ICONS.content}</span>
+      <span class="sp-sic">{@html scope === "projects" ? ICONS.repo : ICONS.content}</span>
+      <span class="sp-scope">{scope === "projects" ? "Projects" : "This repo"}</span>
       <input
         bind:this={inputEl}
         bind:value={query}
-        placeholder="Search files, commits, branches, content..."
+        placeholder={scope === "projects" ? "Search your projects, or open one..." : "Search files, commits, branches, content..."}
         onkeydown={onKey}
         spellcheck="false"
       />
     </div>
 
     <div class="sp-body">
-      {#if !q}
+      {#if scope === "projects"}
+        <div class="sp-h">{q ? "Results" : "Recent projects"}</div>
+        {#each projectMatches as it, i (it.path ?? it.kind)}
+          <button class="sp-row" class:on={highlight === i} onclick={() => selectAt(i)} onmousemove={() => (highlight = i)}>
+            <span class="sp-ic">{@html it.kind === "repo" ? ICONS.repo : it.kind === "browse" ? ICONS.folder : ICONS.git}</span>
+            <span class="sp-main"><span class="sp-title">{it.name}</span><span class="sp-sub">{it.sub}</span></span>
+            <span class="sp-kind">{it.kind === "repo" ? "project" : "action"}</span>
+          </button>
+        {/each}
+        {#if !projectMatches.length}<div class="sp-hint">No matching projects.</div>{/if}
+      {:else if !q}
         <div class="sp-hint">Search across every file, commit message, branch, and file's contents.</div>
       {:else}
         {#if branchMatches.length}
