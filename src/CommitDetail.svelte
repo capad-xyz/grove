@@ -3,6 +3,7 @@
   import DiffView from "./DiffView.svelte";
   import DiffModal from "./DiffModal.svelte";
   import WrapToggle from "./WrapToggle.svelte";
+  import Skeleton from "./Skeleton.svelte";
   import Copy from "./Copy.svelte";
 
   let { path, oid } = $props();
@@ -160,12 +161,24 @@
       </div>
     {/if}
     {#if diffLoading}
-      <div class="dloading">Loading diff...</div>
+      <div class="sk-diff">
+        <Skeleton lines={12} h="12px" gap="9px" widths={["92%", "70%", "84%", "58%", "76%", "48%", "88%", "64%", "40%", "80%", "66%", "52%"]} />
+      </div>
     {:else}
       <DiffView {patch} />
     {/if}
   {:else}
-    <div class="dloading">Loading...</div>
+    <div class="dhead">
+      <Skeleton w="82%" h="16px" />
+      <div style="height:14px"></div>
+      <Skeleton lines={3} h="11px" gap="8px" widths={["55%", "42%", "28%"]} />
+    </div>
+    <div class="dfiles">
+      <Skeleton lines={4} h="14px" gap="16px" widths={["68%", "54%", "62%", "40%"]} />
+    </div>
+    <div class="sk-diff">
+      <Skeleton lines={8} h="12px" gap="9px" widths={["90%", "66%", "82%", "54%", "74%", "46%", "86%", "60%"]} />
+    </div>
   {/if}
 </div>
 

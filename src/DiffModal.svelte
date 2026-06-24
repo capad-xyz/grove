@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import DiffView from "./DiffView.svelte";
   import WrapToggle from "./WrapToggle.svelte";
+  import Skeleton from "./Skeleton.svelte";
   import Copy from "./Copy.svelte";
 
   // Large, dedicated diff view for one file of one commit. Lets the user move
@@ -52,7 +53,9 @@
         {#if error}
           <div class="derror">{error}</div>
         {:else if loading}
-          <div class="dloading">Loading diff...</div>
+          <div class="sk-diff">
+            <Skeleton lines={16} h="13px" gap="10px" widths={["94%", "72%", "86%", "60%", "78%", "50%", "90%", "66%", "42%", "82%", "68%", "54%", "88%", "62%", "46%", "76%"]} />
+          </div>
         {:else}
           <DiffView {patch} />
         {/if}

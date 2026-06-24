@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import DiffView from "./DiffView.svelte";
   import WrapToggle from "./WrapToggle.svelte";
+  import Skeleton from "./Skeleton.svelte";
   import Copy from "./Copy.svelte";
 
   let { path, file, onclose } = $props();
@@ -92,6 +93,9 @@
     <div class="fv-body">
       <div class="fv-history">
         <div class="fv-h">History</div>
+        {#if !history.length && loading}
+          <div style="padding:8px"><Skeleton lines={9} h="34px" gap="8px" r="8px" /></div>
+        {/if}
         {#each history as c, i}
           <button class="fv-commit" class:on={toRev === c.id} onclick={() => selectCommit(i)}>
             <span class="fv-sum">{c.summary}</span>
@@ -121,14 +125,18 @@
           {#if error}
             <div class="derror">{error}</div>
           {:else if loading}
-            <div class="dloading">Loading diff...</div>
+            <div class="sk-diff">
+              <Skeleton lines={14} h="13px" gap="10px" widths={["92%", "70%", "84%", "58%", "78%", "50%", "88%", "64%", "42%", "80%", "66%", "54%", "86%", "60%"]} />
+            </div>
           {:else}
             <DiffView {patch} empty="No differences between {shortRev(fromRev)} and {shortRev(toRev)}." />
           {/if}
         {:else if blameErr}
           <div class="derror">{blameErr}</div>
         {:else if blameLoading}
-          <div class="dloading">Loading blame...</div>
+          <div class="sk-diff">
+            <Skeleton lines={16} h="13px" gap="10px" widths={["88%", "66%", "80%", "54%", "74%", "48%", "84%", "60%", "40%", "78%", "64%", "52%", "82%", "58%", "44%", "72%"]} />
+          </div>
         {:else}
           <div class="bl">
             {#each blame as b}

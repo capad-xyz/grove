@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import Skeleton from "./Skeleton.svelte";
   import Copy from "./Copy.svelte";
 
   let { path, onopen, tick = 0 } = $props();
@@ -29,7 +30,16 @@
   {#if error}
     <div class="derror">{error}</div>
   {:else if loading}
-    <div class="dloading">Loading worktrees...</div>
+    <div class="wt-grid">
+      {#each Array(3) as _}
+        <div class="wt-card">
+          <Skeleton w="58%" h="16px" />
+          <Skeleton w="44%" h="22px" r="999px" />
+          <Skeleton w="92%" h="11px" />
+          <Skeleton w="28%" h="14px" />
+        </div>
+      {/each}
+    </div>
   {:else}
     <div class="wt-grid">
       {#each list as w}

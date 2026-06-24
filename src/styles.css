@@ -616,6 +616,36 @@ button {
   padding-right: 16px;
 }
 
+/* ---------- Skeleton shimmer ---------- */
+.skel {
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 37%,
+    var(--surface-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: skel-shimmer 1.4s ease infinite;
+}
+.skel-stack {
+  display: flex;
+  flex-direction: column;
+}
+@keyframes skel-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+.sk-pad {
+  padding: 18px 20px;
+}
+.sk-diff {
+  padding: 10px 18px;
+}
+
 /* ---------- One-click copy control ---------- */
 .copy-ic {
   display: inline-flex;

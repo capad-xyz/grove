@@ -1,5 +1,6 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import Skeleton from "./Skeleton.svelte";
 
   let { path, onpick, onclose } = $props();
 
@@ -10,6 +11,7 @@
   let highlight = $state(0);
   let inputEl = $state(null);
   let grepTimer = null;
+  let searching = $state(false);
 
   // Load the tracked-file list once; fuzzy filtering happens client-side (fast).
   invoke("list_files", { path })
@@ -58,12 +60,15 @@
     clearTimeout(grepTimer);
     if (!q.trim()) {
       hits = [];
+      searching = false;
       return;
     }
+    searching = true;
     grepTimer = setTimeout(() => {
       invoke("grep_repo", { path, query: q })
         .then((h) => (hits = h))
-        .catch(() => (hits = []));
+        .catch(() => (hits = []))
+        .finally(() => (searching = false));
     }, 130);
   });
 
@@ -123,6 +128,8 @@
           </button>
         {/each}
         {#if !fileMatches.length}<div class="fnd-empty">{files.length ? "No matching files." : "Loading files..."}</div>{/if}
+      {:else if searching}
+        <div style="padding:6px"><Skeleton lines={8} h="36px" gap="6px" r="8px" /></div>
       {:else}
         {#each hits as h, i}
           <button class="fnd-row hit" class:on={i === highlight} onclick={() => pick(i)} onmousemove={() => (highlight = i)}>
