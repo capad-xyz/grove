@@ -36,6 +36,7 @@
   const folderIcon = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
   const repoIcon = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.3"/><circle cx="6" cy="18" r="2.3"/><circle cx="18" cy="9" r="2.3"/><path d="M6 8.3v7.4M8.2 7.1 15.6 8.6"/></svg>`;
   const upIcon = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 19V7M6 12l6-6 6 6"/></svg>`;
+  const searchIcon = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`;
 
   $effect(() => {
     if (started) return;
@@ -216,6 +217,12 @@
         <h1>{recents.length ? "Welcome back" : "Welcome to Grove"}</h1>
         <p>Open a repository to explore its graph, worktrees, and diffs.</p>
       </div>
+
+      <button class="gx-herosearch" onclick={openSearch}>
+        <span class="gx-hs-ic">{@html searchIcon}</span>
+        <span class="gx-hs-text">Search your projects, or open a repository...</span>
+        <kbd>Ctrl K</kbd>
+      </button>
 
       {#if recents.length}
         <div class="gx-h">Jump back in</div>

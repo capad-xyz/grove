@@ -1251,6 +1251,36 @@ button {
   color: var(--muted);
   font-weight: 700;
 }
+.gx-herosearch {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  margin-top: 24px;
+  padding: 16px 20px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s ease, transform 0.12s ease, box-shadow 0.12s ease;
+}
+.gx-herosearch:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-card);
+}
+.gx-hs-ic {
+  display: flex;
+  color: var(--accent);
+  flex: none;
+}
+.gx-hs-text {
+  flex: 1;
+}
+
 .gx-recents {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
