@@ -1,0 +1,27 @@
+# Node / frontend
+node_modules/
+dist/
+.svelte-kit/
+build/
+*.local
+.env
+.env.*
+!.env.example
+
+# Rust / Tauri
+target/
+src-tauri/target/
+**/*.rs.bk
+Cargo.lock.orig
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
