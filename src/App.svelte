@@ -1,19 +1,28 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
+  import CommitGraph from "./CommitGraph.svelte";
 
-  // Svelte 5 runes. `let x = $state(...)` is the modern reactive declaration.
   let path = $state("");
   let repo = $state(null);
+  let commits = $state([]);
   let error = $state("");
   let loading = $state(false);
+  let selected = $state(null);
+
+  const repoName = $derived(
+    repo?.workdir ? repo.workdir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() : "",
+  );
 
   async function open() {
     if (!path.trim()) return;
     error = "";
     repo = null;
+    commits = [];
+    selected = null;
     loading = true;
     try {
       repo = await invoke("repo_open", { path });
+      commits = await invoke("commit_graph", { path, limit: 400 });
     } catch (e) {
       error = String(e);
     } finally {
@@ -22,13 +31,9 @@
   }
 </script>
 
-<main>
-  <header>
-    <h1>Grove</h1>
-    <p class="tagline">A git companion that sits beside your editor.</p>
-  </header>
-
-  <div class="open-bar">
+<div class="app">
+  <div class="topbar">
+    <div class="brand">Grove</div>
     <input
       bind:value={path}
       placeholder="Paste the path to a git repo"
@@ -38,30 +43,25 @@
     <button onclick={open} disabled={loading}>
       {loading ? "Opening..." : "Open"}
     </button>
+    {#if repo}
+      <div class="repo-chip">
+        <span class="name">{repoName}</span>
+        {#if repo.head}<span class="branch">{repo.head}</span>{/if}
+        <span class="count">{commits.length} commits</span>
+      </div>
+    {/if}
   </div>
 
-  {#if error}
-    <p class="error">{error}</p>
-  {/if}
-
-  {#if repo}
-    <section class="repo">
-      <h2>{repo.head ?? "(detached HEAD)"}</h2>
-      <dl>
-        <dt>Worktree</dt>
-        <dd>{repo.workdir ?? "(bare repository)"}</dd>
-        <dt>Git directory</dt>
-        <dd>{repo.path}</dd>
-        <dt>Bare</dt>
-        <dd>{repo.is_bare}</dd>
-      </dl>
-      <p class="placeholder">
-        Commit graph, worktree dashboard, and diff review land here next.
-      </p>
-    </section>
-  {:else if !error}
-    <section class="empty">
-      <p>Open any folder to see its graph, worktrees, and diffs.</p>
-    </section>
-  {/if}
-</main>
+  <div class="body">
+    {#if error}
+      <div class="error">{error}</div>
+    {:else if repo}
+      <CommitGraph {commits} {selected} onselect={(id) => (selected = id)} />
+    {:else}
+      <div class="empty">
+        <h2>Open a repository</h2>
+        <p>Paste a path above to see its commit graph, worktrees, and diffs.</p>
+      </div>
+    {/if}
+  </div>
+</div>
