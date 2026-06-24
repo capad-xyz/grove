@@ -3,11 +3,12 @@
   import Skeleton from "./Skeleton.svelte";
 
   // One search for everything: files (any path ever in the repo), commit
-  // messages, branches, and file contents.
-  let { path, branches = [], onfile, oncommit, onbranch, onclose } = $props();
+  // messages, branches, and file contents. `fileIndex` is precomputed by the
+  // parent (path + lowercased path + lowercased basename) so fuzzy matching per
+  // keystroke is pure comparison with no per-file allocation.
+  let { path, branches = [], fileIndex = [], onfile, oncommit, onbranch, onclose } = $props();
 
   let query = $state("");
-  let allFiles = $state([]);
   let commitHits = $state([]);
   let contentHits = $state([]);
   let searchingCommits = $state(false);
@@ -16,7 +17,6 @@
   let inputEl = $state(null);
   let timer = null;
 
-  invoke("all_files", { path }).then((f) => (allFiles = f)).catch(() => {});
   queueMicrotask(() => inputEl?.focus());
 
   const ICONS = {
@@ -26,12 +26,14 @@
     content: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.3-4.3"/></svg>`,
   };
 
-  function fuzzy(list, q) {
-    if (!q) return [];
-    const ql = q.toLowerCase();
+  // Fuzzy subsequence match over the precomputed index. Stops scanning a path
+  // as soon as the query can't fit, and caps to the top results.
+  function fuzzy(index, ql) {
+    if (!ql) return [];
     const scored = [];
-    for (const f of list) {
-      const fl = f.toLowerCase();
+    for (const e of index) {
+      const fl = e.lower;
+      if (fl.length < ql.length) continue;
       let qi = 0;
       let score = 0;
       let last = -2;
@@ -43,8 +45,7 @@
         }
       }
       if (qi === ql.length) {
-        const base = f.split(/[\\/]/).pop().toLowerCase();
-        scored.push({ f, score: score + (base.includes(ql) ? 12 : 0) - fl.length * 0.01 });
+        scored.push({ f: e.path, score: score + (e.base.includes(ql) ? 12 : 0) - fl.length * 0.01 });
       }
     }
     scored.sort((a, b) => b.score - a.score);
@@ -52,10 +53,9 @@
   }
 
   const q = $derived(query.trim());
-  const branchMatches = $derived(
-    q ? branches.filter((b) => b.toLowerCase().includes(q.toLowerCase())).slice(0, 6) : [],
-  );
-  const fileMatches = $derived(fuzzy(allFiles, q));
+  const ql = $derived(q.toLowerCase());
+  const branchMatches = $derived(q ? branches.filter((b) => b.toLowerCase().includes(ql)).slice(0, 6) : []);
+  const fileMatches = $derived(fuzzy(fileIndex, ql));
 
   const offFiles = $derived(branchMatches.length);
   const offCommits = $derived(offFiles + fileMatches.length);
@@ -87,7 +87,7 @@
         .then((h) => (contentHits = h.slice(0, 8)))
         .catch(() => (contentHits = []))
         .finally(() => (searchingContent = false));
-    }, 160);
+    }, 120);
   });
 
   function selectAt(i) {

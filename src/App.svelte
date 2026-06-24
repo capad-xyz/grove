@@ -26,6 +26,34 @@
   let branches = $state([]);
   let branch = $state(""); // "" = all branches
 
+  // Precomputed file index for instant Spotlight search. Built once per repo
+  // (ls-files immediately, the full "every path ever" set in the background)
+  // and grown on live-refresh, so it is never re-walked from scratch.
+  let fileIndex = $state([]);
+  let knownPaths = new Set();
+
+  const buildEntry = (f) => ({
+    path: f,
+    lower: f.toLowerCase(),
+    base: (f.split(/[\\/]/).pop() || "").toLowerCase(),
+  });
+
+  function addFiles(files) {
+    let added = false;
+    for (const f of files) {
+      if (f && !knownPaths.has(f)) {
+        knownPaths.add(f);
+        added = true;
+      }
+    }
+    if (added) fileIndex = Array.from(knownPaths, buildEntry);
+  }
+
+  function loadFiles(p) {
+    invoke("list_files", { path: p }).then(addFiles).catch(() => {});
+    invoke("all_files", { path: p }).then(addFiles).catch(() => {});
+  }
+
   const repoName = $derived(
     repo?.workdir ? repo.workdir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() : "",
   );
@@ -37,6 +65,8 @@
     finderOpen = false;
     fileView = null;
     branch = "";
+    knownPaths = new Set();
+    fileIndex = [];
     try {
       repo = await invoke("repo_open", { path: p });
       commits = await invoke("commit_graph", { path: p, limit: 400, refspec: null });
@@ -49,6 +79,7 @@
       invoke("watch_repo", { path: p })
         .then(() => (live = true))
         .catch(() => (live = false));
+      loadFiles(p);
     } catch (e) {
       error = String(e);
       view = "home";
@@ -80,6 +111,7 @@
       commits = await invoke("commit_graph", { path, limit: 400, refspec: branch || null });
       unpushed = await invoke("unpushed_commits", { path }).catch(() => []);
       repo = await invoke("repo_open", { path });
+      invoke("list_files", { path }).then(addFiles).catch(() => {}); // pick up new files
       liveTick++; // nudge the worktrees view to reload too
     } catch {}
   }
@@ -175,6 +207,7 @@
   <Spotlight
     {path}
     {branches}
+    {fileIndex}
     onfile={(f) => { fileView = f; finderOpen = false; }}
     oncommit={(oid) => { selected = oid; tab = "graph"; finderOpen = false; }}
     onbranch={(b) => { branch = b; onBranchChange(); finderOpen = false; }}
