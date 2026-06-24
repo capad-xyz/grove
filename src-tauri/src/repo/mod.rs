@@ -75,6 +75,16 @@ pub struct DirListing {
     pub entries: Vec<DirEntry>,
 }
 
+/// One line of `git blame` output.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct BlameLine {
+    pub line: u32,
+    pub short: String,
+    pub author: String,
+    pub summary: String,
+    pub text: String,
+}
+
 /// One match from a repository content search.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GrepHit {

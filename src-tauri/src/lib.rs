@@ -2,7 +2,7 @@ mod agent;
 mod repo;
 
 use notify::RecommendedWatcher;
-use repo::{CommitDetail, CommitNode, DirListing, GrepHit, RepoSummary, Worktree};
+use repo::{BlameLine, CommitDetail, CommitNode, DirListing, GrepHit, RepoSummary, Worktree};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -84,6 +84,12 @@ fn file_diff_between(path: String, a: String, b: String, file: String) -> Result
 #[tauri::command]
 fn file_at(path: String, rev: String, file: String) -> Result<String, String> {
     repo::read::file_at(&path, &rev, &file).map_err(|e| e.to_string())
+}
+
+/// Per-line blame for a file.
+#[tauri::command]
+fn blame(path: String, file: String) -> Result<Vec<BlameLine>, String> {
+    repo::read::blame(&path, &file).map_err(|e| e.to_string())
 }
 
 /// Clone `url` into `~/GroveRepos/<name>` and return the local path.
@@ -223,6 +229,7 @@ pub fn run() {
             file_history,
             file_diff_between,
             file_at,
+            blame,
             clone_repo,
             watch_repo,
             unwatch_repo,

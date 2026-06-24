@@ -460,6 +460,72 @@ button {
   flex: 1;
   overflow: auto;
 }
+.fv-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 10px 16px 0;
+}
+.fv-tabs button {
+  padding: 6px 14px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 7px 7px 0 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.fv-tabs button.on {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* Blame */
+.bl {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.bl-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  white-space: pre;
+}
+.bl-row:hover {
+  background: var(--surface-2);
+}
+.bl-no {
+  flex: none;
+  width: 46px;
+  padding: 0 8px;
+  text-align: right;
+  color: #5d6470;
+  user-select: none;
+}
+.bl-sha {
+  flex: none;
+  width: 64px;
+  color: var(--accent);
+  cursor: help;
+}
+.bl-auth {
+  flex: none;
+  width: 120px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+.bl-code {
+  color: var(--text-dim);
+  padding-right: 16px;
+}
 
 /* ---------- One-click copy control ---------- */
 .copy-ic {

@@ -12,11 +12,19 @@
   let error = $state("");
   let loading = $state(true);
 
+  let tab = $state("changes"); // "changes" | "blame"
+  let blame = $state([]);
+  let blameErr = $state("");
+  let blameLoading = $state(false);
+
   $effect(() => {
     const f = file;
     loading = true;
     error = "";
     history = [];
+    tab = "changes";
+    blame = [];
+    blameErr = "";
     invoke("file_history", { path, file: f })
       .then((h) => {
         history = h;
@@ -52,6 +60,24 @@
     }
   }
 
+  async function loadBlame() {
+    if (blame.length || blameLoading) return;
+    blameLoading = true;
+    blameErr = "";
+    try {
+      blame = await invoke("blame", { path, file });
+    } catch (e) {
+      blameErr = String(e);
+    } finally {
+      blameLoading = false;
+    }
+  }
+
+  function showBlame() {
+    tab = "blame";
+    loadBlame();
+  }
+
   const shortRev = (r) => (r.length > 12 ? r.slice(0, 7) : r);
 </script>
 
@@ -74,22 +100,44 @@
       </div>
 
       <div class="fv-diff">
-        <div class="fv-compare">
-          <span>Compare</span>
-          <select bind:value={fromRev} onchange={loadDiff}>
-            {#each history as c}<option value={c.id}>{c.short} — {c.summary}</option>{/each}
-          </select>
-          <span class="fv-arrow">to</span>
-          <select bind:value={toRev} onchange={loadDiff}>
-            {#each history as c}<option value={c.id}>{c.short} — {c.summary}</option>{/each}
-          </select>
+        <div class="fv-tabs">
+          <button class:on={tab === "changes"} onclick={() => (tab = "changes")}>Changes</button>
+          <button class:on={tab === "blame"} onclick={showBlame}>Blame</button>
         </div>
-        {#if error}
-          <div class="derror">{error}</div>
-        {:else if loading}
-          <div class="dloading">Loading diff...</div>
+
+        {#if tab === "changes"}
+          <div class="fv-compare">
+            <span>Compare</span>
+            <select bind:value={fromRev} onchange={loadDiff}>
+              {#each history as c}<option value={c.id}>{c.short} — {c.summary}</option>{/each}
+            </select>
+            <span class="fv-arrow">to</span>
+            <select bind:value={toRev} onchange={loadDiff}>
+              {#each history as c}<option value={c.id}>{c.short} — {c.summary}</option>{/each}
+            </select>
+          </div>
+          {#if error}
+            <div class="derror">{error}</div>
+          {:else if loading}
+            <div class="dloading">Loading diff...</div>
+          {:else}
+            <DiffView {patch} empty="No differences between {shortRev(fromRev)} and {shortRev(toRev)}." />
+          {/if}
+        {:else if blameErr}
+          <div class="derror">{blameErr}</div>
+        {:else if blameLoading}
+          <div class="dloading">Loading blame...</div>
         {:else}
-          <DiffView {patch} empty="No differences between {shortRev(fromRev)} and {shortRev(toRev)}." />
+          <div class="bl">
+            {#each blame as b}
+              <div class="bl-row">
+                <span class="bl-no">{b.line}</span>
+                <span class="bl-sha" title={b.summary}>{b.short}</span>
+                <span class="bl-auth">{b.author}</span>
+                <span class="bl-code">{b.text || " "}</span>
+              </div>
+            {/each}
+          </div>
         {/if}
       </div>
     </div>

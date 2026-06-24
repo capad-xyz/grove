@@ -4,7 +4,8 @@
 
 use super::write;
 use super::{
-    CommitDetail, CommitNode, DirEntry, DirListing, FileChange, GrepHit, RepoSummary, Worktree,
+    BlameLine, CommitDetail, CommitNode, DirEntry, DirListing, FileChange, GrepHit, RepoSummary,
+    Worktree,
 };
 use anyhow::{Context, Result};
 use std::collections::HashMap;
@@ -387,4 +388,55 @@ pub fn file_diff_between(path: &str, a: &str, b: &str, file: &str) -> Result<Str
 pub fn file_at(path: &str, rev: &str, file: &str) -> Result<String> {
     let dir = workdir_of(path)?;
     write::git(&dir, &["show", &format!("{rev}:{file}")])
+}
+
+/// Per-line blame for a file at HEAD.
+pub fn blame(path: &str, file: &str) -> Result<Vec<BlameLine>> {
+    let dir = workdir_of(path)?;
+    let out = write::git(&dir, &["blame", "--porcelain", "HEAD", "--", file])?;
+
+    // Porcelain repeats full commit info only on a commit's first line, so we
+    // cache (author, summary) per sha.
+    let mut cache: HashMap<String, (String, String)> = HashMap::new();
+    let mut lines = Vec::new();
+    let mut sha = String::new();
+    let mut author = String::new();
+    let mut summary = String::new();
+    let mut final_line = 0u32;
+
+    for raw in out.split('\n') {
+        if let Some(code) = raw.strip_prefix('\t') {
+            let (a, s) = cache
+                .entry(sha.clone())
+                .or_insert((author.clone(), summary.clone()));
+            lines.push(BlameLine {
+                line: final_line,
+                short: sha.chars().take(7).collect(),
+                author: a.clone(),
+                summary: s.clone(),
+                text: code.to_string(),
+            });
+        } else if let Some(rest) = raw.strip_prefix("author ") {
+            author = rest.to_string();
+        } else if let Some(rest) = raw.strip_prefix("summary ") {
+            summary = rest.to_string();
+            cache.insert(sha.clone(), (author.clone(), summary.clone()));
+        } else if is_blame_header(raw) {
+            let mut it = raw.split(' ');
+            sha = it.next().unwrap_or("").to_string();
+            let _orig = it.next();
+            final_line = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+            if let Some((a, s)) = cache.get(&sha) {
+                author = a.clone();
+                summary = s.clone();
+            }
+        }
+    }
+    Ok(lines)
+}
+
+/// A porcelain blame header is "<40-hex-sha> <orig> <final> [<count>]".
+fn is_blame_header(l: &str) -> bool {
+    let b = l.as_bytes();
+    b.len() > 40 && b[40] == b' ' && b[..40].iter().all(|c| c.is_ascii_hexdigit())
 }
