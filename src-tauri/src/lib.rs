@@ -1,7 +1,7 @@
 mod agent;
 mod repo;
 
-use repo::{CommitDetail, CommitNode, DirListing, RepoSummary};
+use repo::{CommitDetail, CommitNode, DirListing, RepoSummary, Worktree};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::Manager;
@@ -35,6 +35,12 @@ fn file_diff(path: String, oid: String, file: String) -> Result<String, String> 
 #[tauri::command]
 fn list_dir(path: String) -> Result<DirListing, String> {
     repo::read::list_dir(&path).map_err(|e| e.to_string())
+}
+
+/// List the repository's linked working trees.
+#[tauri::command]
+fn worktrees(path: String) -> Result<Vec<Worktree>, String> {
+    repo::read::worktrees(&path).map_err(|e| e.to_string())
 }
 
 /// Clone `url` into `~/GroveRepos/<name>` and return the local path.
@@ -114,6 +120,7 @@ pub fn run() {
             commit_detail,
             file_diff,
             list_dir,
+            worktrees,
             clone_repo,
             recent_repos,
             add_recent_repo

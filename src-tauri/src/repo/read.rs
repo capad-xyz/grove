@@ -3,7 +3,9 @@
 //! for now (a thin, easily-swapped boundary).
 
 use super::write;
-use super::{CommitDetail, CommitNode, DirEntry, DirListing, FileChange, RepoSummary};
+use super::{
+    CommitDetail, CommitNode, DirEntry, DirListing, FileChange, RepoSummary, Worktree,
+};
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::path::Path;
@@ -238,4 +240,66 @@ fn dirs_home() -> String {
     std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_else(|_| ".".into())
+}
+
+/// List the repository's linked working trees with their state.
+pub fn worktrees(path: &str) -> Result<Vec<Worktree>> {
+    let dir = workdir_of(path)?;
+    let out = write::git(&dir, &["worktree", "list", "--porcelain"])?;
+    let normalized = out.replace('\r', "");
+    let mut list = Vec::new();
+
+    for (i, block) in normalized.split("\n\n").enumerate() {
+        let block = block.trim();
+        if block.is_empty() {
+            continue;
+        }
+        let mut wt_path = String::new();
+        let mut head = String::new();
+        let mut branch = None;
+        let mut detached = false;
+        for line in block.lines() {
+            if let Some(p) = line.strip_prefix("worktree ") {
+                wt_path = p.to_string();
+            } else if let Some(h) = line.strip_prefix("HEAD ") {
+                head = h.chars().take(7).collect();
+            } else if let Some(b) = line.strip_prefix("branch ") {
+                branch = Some(b.trim_start_matches("refs/heads/").to_string());
+            } else if line.trim() == "detached" {
+                detached = true;
+            }
+        }
+        if wt_path.is_empty() {
+            continue;
+        }
+        let dirty = write::git(&wt_path, &["status", "--porcelain"])
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false);
+        let (ahead, behind, has_upstream) = ahead_behind(&wt_path);
+        list.push(Worktree {
+            is_main: i == 0,
+            path: wt_path,
+            branch,
+            head,
+            detached,
+            dirty,
+            ahead,
+            behind,
+            has_upstream,
+        });
+    }
+    Ok(list)
+}
+
+/// (ahead, behind, has_upstream) for the working tree's HEAD vs its upstream.
+fn ahead_behind(wt: &str) -> (u32, u32, bool) {
+    match write::git(wt, &["rev-list", "--left-right", "--count", "@{u}...HEAD"]) {
+        Ok(s) => {
+            let mut it = s.split_whitespace();
+            let behind = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+            let ahead = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
+            (ahead, behind, true)
+        }
+        Err(_) => (0, 0, false),
+    }
 }

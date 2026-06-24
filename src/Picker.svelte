@@ -1,29 +1,41 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
 
-  let { onopen } = $props();
+  let { onopen, leaf } = $props();
 
   let recents = $state([]);
-  let paletteOpen = $state(true);
-  let step = $state("sources"); // "sources" | "folder" | "git"
+  let mode = $state("home"); // "home" | "browse" | "git"
+  let started = false;
+
+  // browse state
+  let listing = $state(null);
   let query = $state("");
   let highlight = $state(0);
-
-  let listing = $state(null);
-  let gitUrl = $state("");
-  let busy = $state(false);
-  let error = $state("");
+  let browseErr = $state("");
   let searchEl = $state(null);
-  let started = false;
+
+  // git state
+  let gitUrl = $state("");
+  let gitErr = $state("");
+  let busy = $state(false);
 
   const SOURCES = [
     { id: "local", label: "Local folder", desc: "Browse a folder on disk" },
     { id: "git", label: "Git URL", desc: "Clone from a remote URL" },
-    { id: "azure", label: "Azure DevOps repository", desc: "Clone Azure project/repository", setup: true },
-    { id: "bitbucket", label: "Bitbucket repository", desc: "Clone Bitbucket workspace/repository", setup: true },
-    { id: "github", label: "GitHub repository", desc: "Clone GitHub owner/repo", setup: true },
-    { id: "gitlab", label: "GitLab repository", desc: "Clone GitLab group/project", setup: true },
+    { id: "github", label: "GitHub", desc: "owner / repo", soon: true },
+    { id: "gitlab", label: "GitLab", desc: "group / project", soon: true },
+    { id: "azure", label: "Azure DevOps", desc: "project / repository", soon: true },
+    { id: "bitbucket", label: "Bitbucket", desc: "workspace / repo", soon: true },
   ];
+
+  const ICONS = {
+    local: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
+    git: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.5 13.5a4 4 0 0 0 5.7 0l2-2a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2 2a4 4 0 0 0 5.7 5.7l1-1"/></svg>`,
+    host: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.3"/><circle cx="6" cy="18" r="2.3"/><circle cx="18" cy="9" r="2.3"/><path d="M6 8.3v7.4M8.2 7.1 15.6 8.6"/></svg>`,
+  };
+  const folderIcon = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+  const repoIcon = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.3"/><circle cx="6" cy="18" r="2.3"/><circle cx="18" cy="9" r="2.3"/><path d="M6 8.3v7.4M8.2 7.1 15.6 8.6"/></svg>`;
+  const upIcon = `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 19V7M6 12l6-6 6 6"/></svg>`;
 
   $effect(() => {
     if (started) return;
@@ -31,91 +43,65 @@
     invoke("recent_repos").then((r) => (recents = r)).catch(() => {});
   });
 
-  const q = $derived(query.trim().toLowerCase());
-
   const items = $derived.by(() => {
-    if (step === "sources") {
-      return SOURCES.filter(
-        (s) => !q || s.label.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q),
-      );
+    if (mode !== "browse" || !listing) return [];
+    const q = query.trim().toLowerCase();
+    const list = [];
+    if (listing.parent) list.push({ kind: "up", name: ".. up a level", path: listing.parent });
+    for (const e of listing.entries) {
+      if (!q || e.name.toLowerCase().includes(q)) list.push({ kind: "dir", ...e });
     }
-    if (step === "folder" && listing) {
-      const list = [];
-      if (listing.parent) list.push({ kind: "up", label: ".. (up a level)", path: listing.parent });
-      for (const e of listing.entries) {
-        if (!q || e.name.toLowerCase().includes(q)) list.push({ kind: "dir", ...e });
-      }
-      return list;
-    }
-    return [];
+    return list;
   });
 
-  // Keep the highlight within range whenever the list changes.
   $effect(() => {
     if (highlight >= items.length) highlight = Math.max(0, items.length - 1);
   });
 
-  async function openPalette() {
-    paletteOpen = true;
-    step = "sources";
+  async function startBrowse() {
+    mode = "browse";
     query = "";
     highlight = 0;
-    error = "";
+    browseErr = "";
+    await navigate("");
+    queueMicrotask(() => searchEl?.focus());
+  }
+
+  function startGit() {
+    mode = "git";
+    gitErr = "";
     queueMicrotask(() => searchEl?.focus());
   }
 
   async function navigate(path) {
-    error = "";
+    browseErr = "";
     query = "";
     highlight = 0;
     try {
       listing = await invoke("list_dir", { path });
-      step = "folder";
     } catch (e) {
-      error = String(e);
-    }
-  }
-
-  async function chooseSource(s) {
-    if (s.setup) return;
-    if (s.id === "local") navigate("");
-    else if (s.id === "git") {
-      step = "git";
-      query = "";
-      error = "";
+      browseErr = String(e);
     }
   }
 
   function activate(item) {
-    if (step === "sources") chooseSource(item);
-    else if (step === "folder") {
-      if (item.kind === "up") navigate(item.path);
-      else if (item.is_repo) onopen(item.path);
-      else navigate(item.path);
-    }
+    if (!item) return;
+    if (item.kind === "up") navigate(item.path);
+    else if (item.is_repo) onopen(item.path);
+    else navigate(item.path);
   }
 
   async function doClone() {
     if (!gitUrl.trim()) return;
     busy = true;
-    error = "";
+    gitErr = "";
     try {
-      const path = await invoke("clone_repo", { url: gitUrl.trim() });
-      onopen(path);
+      const p = await invoke("clone_repo", { url: gitUrl.trim() });
+      onopen(p);
     } catch (e) {
-      error = String(e);
+      gitErr = String(e);
     } finally {
       busy = false;
-    }
-  }
-
-  function back() {
-    error = "";
-    query = "";
-    if (step === "folder" && listing?.parent) navigate(listing.parent);
-    else {
-      step = "sources";
-      highlight = 0;
     }
   }
 
@@ -128,138 +114,136 @@
       highlight = Math.max(highlight - 1, 0);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (items[highlight]) activate(items[highlight]);
+      activate(items[highlight]);
     } else if (e.key === "Backspace" && !query) {
       e.preventDefault();
-      back();
+      if (listing?.parent) navigate(listing.parent);
     } else if (e.key === "Escape") {
-      if (step !== "sources") back();
+      mode = "home";
     }
   }
 
-  $effect(() => {
-    if (paletteOpen) queueMicrotask(() => searchEl?.focus());
-  });
-
-  const placeholder = $derived(
-    step === "sources" ? "Search sources..." : step === "folder" ? "Filter folders..." : "",
+  const crumb = $derived(
+    (listing?.current ?? "").split(/[\\/]/).filter(Boolean).slice(-5).join("  /  "),
   );
 </script>
 
-<svelte:window
-  onkeydown={(e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      openPalette();
-    }
-  }}
-/>
-
 <div class="home">
-  <aside class="sidebar">
-    <div class="side-brand">Grove <span class="alpha">ALPHA</span></div>
-    <button class="side-search" onclick={openPalette}>
-      <span>Search</span><kbd>Ctrl K</kbd>
-    </button>
-    <div class="side-projects">
-      <div class="side-h">
-        <span>PROJECTS</span>
-        <button class="side-add" onclick={openPalette} title="Add a repository">+</button>
-      </div>
+  <aside class="gx-side">
+    <div class="gx-brand">{@render leaf()} Grove <span class="alpha">ALPHA</span></div>
+    <button class="gx-new" onclick={startBrowse}>{@html folderIcon} Open repository</button>
+    <div class="gx-projlabel">PROJECTS</div>
+    <div class="gx-projects">
       {#if recents.length}
         {#each recents as r}
-          <button class="side-proj" onclick={() => onopen(r.path)} title={r.path}>
-            <span class="sp-dot"></span>{r.name}
+          <button class="gx-proj" onclick={() => onopen(r.path)} title={r.path}>
+            <span class="dot"></span>{r.name}
           </button>
         {/each}
       {:else}
-        <div class="side-empty">No projects yet</div>
+        <div class="gx-side-empty">No projects yet</div>
       {/if}
     </div>
-    <button class="side-settings">Settings</button>
+    <button class="gx-settings">Settings</button>
   </aside>
 
-  <main class="home-main">
-    {#if paletteOpen}
-      <div class="palette">
-        {#if step === "git"}
-          <div class="pal-search">
-            <button class="pal-back" onclick={back} title="Back">‹</button>
-            <input
-              bind:this={searchEl}
-              bind:value={gitUrl}
-              placeholder="https://github.com/owner/repo.git"
-              onkeydown={(e) => {
-                if (e.key === "Enter") doClone();
-                else if (e.key === "Escape") back();
-              }}
-              spellcheck="false"
-            />
-          </div>
-          <div class="pal-body">
-            <div class="pal-section">Clone</div>
-            <button class="pal-row selected" onclick={doClone}>
-              <div class="pal-main">
-                <div class="pal-label">{busy ? "Cloning..." : "Clone repository"}</div>
-                <div class="pal-desc">Into ~/GroveRepos, then open it</div>
-              </div>
-            </button>
-            {#if error}<div class="pal-error">{error}</div>{/if}
-          </div>
-        {:else}
-          <div class="pal-search">
-            <button class="pal-back" onclick={back} title="Back">‹</button>
-            <input
-              bind:this={searchEl}
-              bind:value={query}
-              placeholder={placeholder}
-              onkeydown={onKey}
-              spellcheck="false"
-            />
-          </div>
-          <div class="pal-body">
-            <div class="pal-section">
-              {step === "sources" ? "Sources" : listing?.current}
-            </div>
-            {#each items as item, i}
-              <button
-                class="pal-row"
-                class:selected={i === highlight}
-                class:disabled={item.setup}
-                onclick={() => activate(item)}
-                onmousemove={() => (highlight = i)}
-              >
-                <span class="pal-icon" class:repo={item.is_repo} class:up={item.kind === "up"}></span>
-                <div class="pal-main">
-                  <div class="pal-label">{item.label ?? item.name}</div>
-                  {#if item.desc}<div class="pal-desc">{item.desc}</div>{/if}
-                </div>
-                {#if item.setup}
-                  <span class="pal-badge">Setup Required</span>
-                {:else if item.is_repo}
-                  <span class="pal-open">open</span>
-                {/if}
-              </button>
-            {/each}
-            {#if !items.length}
-              <div class="pal-empty">Nothing here.</div>
-            {/if}
-            {#if error}<div class="pal-error">{error}</div>{/if}
-          </div>
-        {/if}
+  <main class="gx-main">
+    <div class="gx-canvas">
+      <div class="gx-hero">
+        <h1>{recents.length ? "Welcome back" : "Welcome to Grove"}</h1>
+        <p>Open a repository to explore its graph, worktrees, and diffs.</p>
+      </div>
 
-        <div class="pal-foot">
-          <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
-          <span><kbd>Enter</kbd> Select</span>
-          <span><kbd>Backspace</kbd> Back</span>
-          <span><kbd>Esc</kbd> Close</span>
+      {#if recents.length}
+        <div class="gx-h">Jump back in</div>
+        <div class="gx-recents">
+          {#each recents as r}
+            <button class="gx-card" onclick={() => onopen(r.path)}>
+              <span class="ttl"><span class="dot"></span>{r.name}</span>
+              <span class="sub">{r.path}</span>
+            </button>
+          {/each}
         </div>
+      {/if}
+
+      <div class="gx-h">Open from</div>
+      <div class="gx-sources">
+        {#each SOURCES as s}
+          <button
+            class="gx-src"
+            class:soon={s.soon}
+            onclick={() => (s.id === "local" ? startBrowse() : s.id === "git" ? startGit() : null)}
+          >
+            <span class="gx-ic">{@html ICONS[s.id] ?? ICONS.host}</span>
+            <span>
+              <span class="lbl">{s.label}</span>
+              <span class="ds">{s.desc}</span>
+            </span>
+            {#if s.soon}<span class="gx-soon">soon</span>{/if}
+          </button>
+        {/each}
       </div>
-    {:else}
-      <div class="home-empty">
-        <p>No repository open.</p>
-        <button class="home-open" onclick={openPalette}>Open a repository</button>
-      </div>
-    {/if}
+    </div>
   </main>
 </div>
+
+{#if mode === "browse"}
+  <div class="gx-modal-bg" onclick={() => (mode = "home")}>
+    <div class="gx-modal" onclick={(e) => e.stopPropagation()}>
+      <div class="gx-mhead">
+        <button class="gx-mback" onclick={() => (mode = "home")} title="Close">‹</button>
+        <input
+          bind:this={searchEl}
+          bind:value={query}
+          placeholder="Filter folders..."
+          onkeydown={onKey}
+          spellcheck="false"
+        />
+      </div>
+      <div class="gx-crumb">{crumb || listing?.current}</div>
+      {#if browseErr}
+        <div class="gx-merr">{browseErr}</div>
+      {:else}
+        <div class="gx-list">
+          {#each items as item, i}
+            <button
+              class="gx-row"
+              class:on={i === highlight}
+              class:repo={item.is_repo}
+              onclick={() => activate(item)}
+              onmousemove={() => (highlight = i)}
+            >
+              <span class="ic">{@html item.kind === "up" ? upIcon : item.is_repo ? repoIcon : folderIcon}</span>
+              <span class="nm">{item.name}</span>
+              {#if item.is_repo}<span class="open">open</span>{/if}
+            </button>
+          {/each}
+          {#if !items.length}<div class="gx-side-empty">Nothing here.</div>{/if}
+        </div>
+      {/if}
+      <div class="gx-foot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+        <span><kbd>Enter</kbd> Open</span>
+        <span><kbd>Bksp</kbd> Up</span>
+        <span><kbd>Esc</kbd> Close</span>
+      </div>
+    </div>
+  </div>
+{:else if mode === "git"}
+  <div class="gx-modal-bg" onclick={() => (mode = "home")}>
+    <div class="gx-modal" onclick={(e) => e.stopPropagation()}>
+      <div class="gx-mhead">
+        <button class="gx-mback" onclick={() => (mode = "home")} title="Close">‹</button>
+        <input
+          bind:this={searchEl}
+          bind:value={gitUrl}
+          placeholder="https://github.com/owner/repo.git"
+          onkeydown={(e) => (e.key === "Enter" ? doClone() : e.key === "Escape" ? (mode = "home") : null)}
+          spellcheck="false"
+        />
+      </div>
+      <button class="gx-mbtn" onclick={doClone}>{busy ? "Cloning..." : "Clone into ~/GroveRepos"}</button>
+      {#if gitErr}<div class="gx-merr">{gitErr}</div>{/if}
+    </div>
+  </div>
+{/if}

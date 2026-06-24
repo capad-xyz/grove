@@ -74,3 +74,17 @@ pub struct DirListing {
     pub parent: Option<String>,
     pub entries: Vec<DirEntry>,
 }
+
+/// One linked working tree of a repository.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Worktree {
+    pub path: String,
+    pub branch: Option<String>,
+    pub head: String,
+    pub is_main: bool,
+    pub detached: bool,
+    pub dirty: bool,
+    pub ahead: u32,
+    pub behind: u32,
+    pub has_upstream: bool,
+}

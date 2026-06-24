@@ -4,9 +4,9 @@
   // pass over the topologically-ordered commits from the Rust side.
   let { commits = [], selected = null, onselect = () => {} } = $props();
 
-  const ROW = 32; // px per commit row
+  const ROW = 34; // px per commit row (must match --row in styles.css)
   const LANE = 18; // px per graph lane
-  const PAD = 16; // left padding before lane 0
+  const PAD = 18; // left padding before lane 0
   const R = 5; // node radius
 
   // Warm, Claude-flavoured lane palette.
@@ -126,7 +126,11 @@
     return `${Math.floor(mo / 12)}y`;
   }
 
-  const isHead = (r) => r === "HEAD";
+  function refClass(r) {
+    if (r === "HEAD") return "head";
+    if (r.includes("/")) return "remote";
+    return "";
+  }
 </script>
 
 <div class="graph" style="--row:{ROW}px">
@@ -156,7 +160,7 @@
       >
         <span class="refs">
           {#each c.refs as r}
-            <span class="pill" class:head={isHead(r)}>{r}</span>
+            <span class="pill {refClass(r)}">{r}</span>
           {/each}
         </span>
         <span class="summary">{c.summary}</span>
