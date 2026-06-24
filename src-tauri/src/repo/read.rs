@@ -393,6 +393,45 @@ pub fn grep_repo(path: &str, query: &str) -> Result<Vec<GrepHit>> {
     Ok(hits)
 }
 
+/// Every file path that has ever existed in the repo (current tracked files
+/// plus any path touched anywhere in history), de-duplicated and sorted.
+pub fn all_files(path: &str) -> Result<Vec<String>> {
+    let dir = workdir_of(path)?;
+    let mut set = std::collections::BTreeSet::new();
+    if let Ok(out) = write::git(&dir, &["ls-files"]) {
+        for l in out.lines() {
+            if !l.is_empty() {
+                set.insert(l.to_string());
+            }
+        }
+    }
+    if let Ok(out) = write::git(&dir, &["log", "--all", "--pretty=format:", "--name-only"]) {
+        for l in out.lines() {
+            let l = l.trim();
+            if !l.is_empty() {
+                set.insert(l.to_string());
+            }
+        }
+    }
+    Ok(set.into_iter().collect())
+}
+
+/// Commits across all refs whose message matches `query` (case-insensitive).
+pub fn search_commits(path: &str, query: &str) -> Result<Vec<CommitNode>> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    let dir = workdir_of(path)?;
+    let fmt = commit_format();
+    let grep = format!("--grep={query}");
+    let out = write::git(
+        &dir,
+        &["log", "--all", "-i", &grep, "-n", "40", "--topo-order", &fmt],
+    )
+    .unwrap_or_default();
+    Ok(parse_commit_records(&out))
+}
+
 /// Commits that touched `file`, newest first.
 pub fn file_history(path: &str, file: &str) -> Result<Vec<CommitNode>> {
     let dir = workdir_of(path)?;

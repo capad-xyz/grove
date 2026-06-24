@@ -424,6 +424,125 @@ button {
   font-size: 13px;
 }
 
+/* ---------- Spotlight (global search) ---------- */
+.sp {
+  width: 680px;
+  max-width: 90vw;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.sp-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.sp-sic {
+  display: flex;
+  color: var(--muted);
+  flex: none;
+}
+.sp-search input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 17px;
+}
+.sp-body {
+  max-height: 56vh;
+  overflow: auto;
+  padding: 8px;
+}
+.sp-hint {
+  padding: 20px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.sp-h {
+  padding: 10px 12px 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.sp-skel {
+  padding: 4px 8px;
+}
+.sp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-radius: 9px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.sp-row.on {
+  background: var(--surface-3);
+}
+.sp-ic {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--accent);
+}
+.sp-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sp-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-ln {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-weight: 400;
+}
+.sp-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-sub.mono {
+  font-family: var(--mono);
+}
+.sp-kind {
+  flex: none;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
 /* ---------- File view (history + compare) ---------- */
 .fv {
   width: 1000px;

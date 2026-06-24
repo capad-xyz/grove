@@ -5,7 +5,7 @@
   import CommitDetail from "./CommitDetail.svelte";
   import Picker from "./Picker.svelte";
   import Worktrees from "./Worktrees.svelte";
-  import Finder from "./Finder.svelte";
+  import Spotlight from "./Spotlight.svelte";
   import FileView from "./FileView.svelte";
   import BranchPicker from "./BranchPicker.svelte";
   import Copy from "./Copy.svelte";
@@ -100,7 +100,11 @@
 
 <svelte:window
   onkeydown={(e) => {
-    if (view === "repo" && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "p") {
+    if (
+      view === "repo" &&
+      (e.ctrlKey || e.metaKey) &&
+      (e.key.toLowerCase() === "k" || e.key.toLowerCase() === "p")
+    ) {
       e.preventDefault();
       finderOpen = true;
     }
@@ -142,8 +146,8 @@
         <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>
         <button class:on={tab === "worktrees"} onclick={() => (tab = "worktrees")}>Worktrees</button>
       </div>
-      <button class="find-btn" onclick={() => (finderOpen = true)} title="Find file or content">
-        Find <kbd>Ctrl P</kbd>
+      <button class="find-btn" onclick={() => (finderOpen = true)} title="Search files, commits, branches, content">
+        Search <kbd>Ctrl K</kbd>
       </button>
       <button class="open-another" onclick={backToPicker}>Open another</button>
     </div>
@@ -168,7 +172,14 @@
 {/if}
 
 {#if finderOpen}
-  <Finder {path} onpick={(f) => { fileView = f; finderOpen = false; }} onclose={() => (finderOpen = false)} />
+  <Spotlight
+    {path}
+    {branches}
+    onfile={(f) => { fileView = f; finderOpen = false; }}
+    oncommit={(oid) => { selected = oid; tab = "graph"; finderOpen = false; }}
+    onbranch={(b) => { branch = b; onBranchChange(); finderOpen = false; }}
+    onclose={() => (finderOpen = false)}
+  />
 {/if}
 {#if fileView}
   <FileView {path} file={fileView} onclose={() => (fileView = null)} />

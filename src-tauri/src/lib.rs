@@ -73,6 +73,18 @@ fn list_files(path: String) -> Result<Vec<String>, String> {
     repo::read::list_files(&path).map_err(|e| e.to_string())
 }
 
+/// Every file path that has ever existed in the repo (for spotlight search).
+#[tauri::command]
+fn all_files(path: String) -> Result<Vec<String>, String> {
+    repo::read::all_files(&path).map_err(|e| e.to_string())
+}
+
+/// Commits whose message matches a query (for spotlight search).
+#[tauri::command]
+fn search_commits(path: String, query: String) -> Result<Vec<CommitNode>, String> {
+    repo::read::search_commits(&path, &query).map_err(|e| e.to_string())
+}
+
 /// Content search across tracked files.
 #[tauri::command]
 fn grep_repo(path: String, query: String) -> Result<Vec<GrepHit>, String> {
@@ -237,6 +249,8 @@ pub fn run() {
             worktrees,
             unpushed_commits,
             list_files,
+            all_files,
+            search_commits,
             grep_repo,
             file_history,
             file_diff_between,
