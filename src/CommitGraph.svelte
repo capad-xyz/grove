@@ -140,6 +140,9 @@
       <path d={e.d} stroke={e.color} fill="none" stroke-width="2" />
     {/each}
     {#each layout.nodes as n}
+      {#if n.commit.id === selected}
+        <circle cx={n.x} cy={n.y} r={R + 3.5} fill="none" stroke={n.color} stroke-width="2" opacity="0.55" />
+      {/if}
       <circle cx={n.x} cy={n.y} r={R} fill={n.color} stroke="#15171c" stroke-width="2" />
     {/each}
   </svg>

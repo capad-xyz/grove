@@ -23,3 +23,15 @@ pub fn git(workdir: &str, args: &[&str]) -> Result<String> {
 
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
+
+/// Clone `url` into `dest` (a directory that must not already exist).
+pub fn clone(url: &str, dest: &str) -> Result<()> {
+    let out = Command::new("git").args(["clone", url, dest]).output()?;
+    if !out.status.success() {
+        bail!(
+            "git clone failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
+    }
+    Ok(())
+}

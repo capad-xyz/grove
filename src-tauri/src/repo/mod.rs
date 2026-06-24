@@ -33,3 +33,44 @@ pub struct CommitNode {
     pub refs: Vec<String>,
     pub summary: String,
 }
+
+/// One file changed by a commit.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FileChange {
+    pub path: String,
+    /// Single-letter status: A, M, D, R, C, ... (best effort).
+    pub status: String,
+    pub additions: u32,
+    pub deletions: u32,
+}
+
+/// Full detail for one commit, shown in the side panel.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CommitDetail {
+    pub id: String,
+    pub short: String,
+    pub author: String,
+    pub email: String,
+    pub date: i64,
+    pub subject: String,
+    pub body: String,
+    pub files: Vec<FileChange>,
+}
+
+/// A directory entry shown in the folder picker.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DirEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    /// True if this directory is itself a git repository.
+    pub is_repo: bool,
+}
+
+/// One level of the folder picker.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DirListing {
+    pub current: String,
+    pub parent: Option<String>,
+    pub entries: Vec<DirEntry>,
+}

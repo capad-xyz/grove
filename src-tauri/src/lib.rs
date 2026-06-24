@@ -1,7 +1,10 @@
 mod agent;
 mod repo;
 
-use repo::{CommitNode, RepoSummary};
+use repo::{CommitDetail, CommitNode, DirListing, RepoSummary};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use tauri::Manager;
 
 /// Open a folder and return a summary if it is a git repository.
 /// Reads go through `gix`; see `repo::read`.
@@ -16,10 +19,105 @@ fn commit_graph(path: String, limit: u32) -> Result<Vec<CommitNode>, String> {
     repo::read::graph(&path, limit).map_err(|e| e.to_string())
 }
 
+/// Metadata and changed files for one commit.
+#[tauri::command]
+fn commit_detail(path: String, oid: String) -> Result<CommitDetail, String> {
+    repo::read::commit_detail(&path, &oid).map_err(|e| e.to_string())
+}
+
+/// Unified diff for one file within a commit.
+#[tauri::command]
+fn file_diff(path: String, oid: String, file: String) -> Result<String, String> {
+    repo::read::file_diff(&path, &oid, &file).map_err(|e| e.to_string())
+}
+
+/// List sub-folders for the custom folder picker.
+#[tauri::command]
+fn list_dir(path: String) -> Result<DirListing, String> {
+    repo::read::list_dir(&path).map_err(|e| e.to_string())
+}
+
+/// Clone `url` into `~/GroveRepos/<name>` and return the local path.
+#[tauri::command]
+fn clone_repo(url: String) -> Result<String, String> {
+    let name = url
+        .trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or("repo")
+        .trim_end_matches(".git");
+    if name.is_empty() {
+        return Err("could not derive a repo name from the URL".into());
+    }
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| "no home directory".to_string())?;
+    let parent = PathBuf::from(home).join("GroveRepos");
+    std::fs::create_dir_all(&parent).map_err(|e| e.to_string())?;
+    let dest = parent.join(name);
+    if dest.exists() {
+        return Err(format!("{} already exists", dest.display()));
+    }
+    let dest = dest.display().to_string();
+    repo::write::clone(&url, &dest).map_err(|e| e.to_string())?;
+    Ok(dest)
+}
+
+// --- Recently opened repositories (persisted in the app config dir) ---
+
+#[derive(Serialize, Deserialize, Clone)]
+struct RecentRepo {
+    path: String,
+    name: String,
+}
+
+fn recents_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("recents.json"))
+}
+
+fn read_recents(app: &tauri::AppHandle) -> Vec<RecentRepo> {
+    let path = match recents_path(app) {
+        Ok(p) => p,
+        Err(_) => return vec![],
+    };
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|d| serde_json::from_str(&d).ok())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn recent_repos(app: tauri::AppHandle) -> Vec<RecentRepo> {
+    read_recents(&app)
+}
+
+#[tauri::command]
+fn add_recent_repo(app: tauri::AppHandle, path: String, name: String) -> Vec<RecentRepo> {
+    let mut list = read_recents(&app);
+    list.retain(|r| r.path != path);
+    list.insert(0, RecentRepo { path, name });
+    list.truncate(10);
+    if let Ok(p) = recents_path(&app) {
+        let _ = std::fs::write(p, serde_json::to_string_pretty(&list).unwrap_or_default());
+    }
+    list
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![repo_open, commit_graph])
+        .invoke_handler(tauri::generate_handler![
+            repo_open,
+            commit_graph,
+            commit_detail,
+            file_diff,
+            list_dir,
+            clone_repo,
+            recent_repos,
+            add_recent_repo
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
