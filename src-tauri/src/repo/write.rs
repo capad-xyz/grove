@@ -4,10 +4,25 @@
 
 use anyhow::{bail, Result};
 use std::process::Command;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+/// Don't pop a console window for each subprocess we spawn (Windows GUI apps
+/// otherwise flash a console on every `git` call).
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// A `Command` that never flashes a console window on Windows.
+pub fn command(program: &str) -> Command {
+    let mut c = Command::new(program);
+    #[cfg(windows)]
+    c.creation_flags(CREATE_NO_WINDOW);
+    c
+}
 
 /// Run `git -C <workdir> <args...>` and return stdout on success.
 pub fn git(workdir: &str, args: &[&str]) -> Result<String> {
-    let out = Command::new("git")
+    let out = command("git")
         .arg("-C")
         .arg(workdir)
         .args(args)
@@ -60,7 +75,7 @@ pub fn commit(path: &str, message: &str) -> Result<String> {
 
 /// Clone `url` into `dest` (a directory that must not already exist).
 pub fn clone(url: &str, dest: &str) -> Result<()> {
-    let out = Command::new("git").args(["clone", url, dest]).output()?;
+    let out = command("git").args(["clone", url, dest]).output()?;
     if !out.status.success() {
         bail!(
             "git clone failed: {}",

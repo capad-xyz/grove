@@ -48,8 +48,10 @@ use std::process::{Command, Stdio};
 /// cmd.exe so npm-installed shims (claude.cmd, codex.cmd) resolve from PATH.
 #[cfg(windows)]
 fn build_command(cmd: &str) -> Command {
+    use std::os::windows::process::CommandExt;
     let mut c = Command::new("cmd");
     c.arg("/C").arg(cmd);
+    c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW: don't flash a console
     c
 }
 #[cfg(not(windows))]
