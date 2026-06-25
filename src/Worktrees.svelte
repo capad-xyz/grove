@@ -29,7 +29,7 @@
 
   {#if error}
     <div class="derror">{error}</div>
-  {:else if loading}
+  {:else if loading && !list.length}
     <div class="wt-grid">
       {#each Array(3) as _}
         <div class="wt-card">

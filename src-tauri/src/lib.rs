@@ -266,8 +266,25 @@ fn watch_repo(
 
     let (tx, rx) = std::sync::mpsc::channel::<()>();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
-        if res.is_ok() {
-            let _ = tx.send(());
+        if let Ok(event) = res {
+            // Ignore git's own internal churn. Our reads (git status refreshes
+            // the index, etc.) touch these, which would otherwise re-trigger the
+            // watcher and spin a refresh loop. We still react to real worktree
+            // edits and to ref/HEAD changes (which is what moves the graph).
+            let all_noise = !event.paths.is_empty()
+                && event.paths.iter().all(|p| {
+                    let s = p.to_string_lossy().replace('\\', "/");
+                    s.contains("/.git/index")
+                        || s.ends_with(".lock")
+                        || s.contains("/.git/objects/")
+                        || s.contains("/.git/logs/")
+                        || s.ends_with("/FETCH_HEAD")
+                        || s.ends_with("/COMMIT_EDITMSG")
+                        || s.ends_with("/ORIG_HEAD")
+                });
+            if !all_noise {
+                let _ = tx.send(());
+            }
         }
     })
     .map_err(|e| e.to_string())?;
