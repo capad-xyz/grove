@@ -15,6 +15,26 @@
   let diffLoading = $state(false);
   let copied = $state(false);
   let expand = $state(false);
+  let filesH = $state(190); // resizable height of the file-list box
+
+  function startFilesResize(e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = filesH;
+    const onMove = (ev) => {
+      filesH = Math.max(74, Math.min(window.innerHeight - 240, startH + (ev.clientY - startY)));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "row-resize";
+    document.body.style.userSelect = "none";
+  }
 
   async function writeClipboard(text) {
     try {
@@ -132,7 +152,7 @@
       </div>
     </div>
 
-    <div class="dfiles">
+    <div class="dfiles" style="height:{filesH}px">
       {#each detail.files as f}
         <button
           class="dfile"
@@ -150,6 +170,8 @@
         </button>
       {/each}
     </div>
+
+    <div class="hresizer" onmousedown={startFilesResize} title="Drag to resize the file list"></div>
 
     <div class="detail-diff-area">
       {#if activeFile}

@@ -59,17 +59,30 @@ select {
   outline: none;
 }
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* A thin floating pill, inset by a transparent border so it never collides
+   with the rounded card corners. */
 ::-webkit-scrollbar-thumb {
-  background: #2f333d;
-  border-radius: 6px;
-  border: 2px solid transparent;
+  background: #363b46;
+  border-radius: 999px;
+  border: 3.5px solid transparent;
   background-clip: padding-box;
+  min-height: 44px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3f4b;
+  background: #474d5a;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:active {
+  background: #525866;
   background-clip: padding-box;
 }
 
@@ -1221,7 +1234,7 @@ select {
   flex: 1;
   display: flex;
   min-height: 0;
-  padding: 12px;
+  padding: 7px;
   gap: 0;
   background: var(--bg);
 }
@@ -1246,7 +1259,7 @@ select {
 }
 /* A grippy column resizer that reads as a handle in the gap between cards. */
 .resizer {
-  width: 14px;
+  width: 9px;
   flex: none;
   cursor: col-resize;
   background: transparent;
@@ -1268,6 +1281,31 @@ select {
 .resizer:active::after {
   background: var(--accent);
   height: 72px;
+}
+/* Horizontal (row) resizer: splits a stacked file-list / diff into two boxes. */
+.hresizer {
+  height: 9px;
+  flex: none;
+  cursor: row-resize;
+  background: transparent;
+  position: relative;
+}
+.hresizer::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  height: 4px;
+  width: 42px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.12s ease, width 0.12s ease;
+}
+.hresizer:hover::after,
+.hresizer:active::after {
+  background: var(--accent);
+  width: 72px;
 }
 .graph-skel {
   padding: 14px 18px;
@@ -2446,10 +2484,9 @@ kbd {
 }
 .dfiles {
   padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
-  max-height: 30vh;
   overflow-y: auto;
   flex: none;
+  min-height: 60px;
 }
 /* A scrollbar hint so a long file list reads as scrollable, not cut off. */
 .dfiles::-webkit-scrollbar,

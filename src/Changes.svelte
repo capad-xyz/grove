@@ -17,6 +17,26 @@
   let message = $state("");
   let committing = $state(false);
   let generating = $state(false);
+  let sideW = $state(360); // resizable width of the file-list box
+
+  function startSideResize(e) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sideW;
+    const onMove = (ev) => {
+      sideW = Math.max(220, Math.min(window.innerWidth - 320, startW + (ev.clientX - startX)));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  }
 
   async function generate() {
     generating = true;
@@ -129,7 +149,7 @@
 </script>
 
 <div class="ch">
-  <div class="ch-side">
+  <div class="ch-side" style="width:{sideW}px">
     {#if loading && !status}
       <div style="padding:12px"><Skeleton lines={6} h="20px" gap="10px" r="6px" /></div>
     {:else if error}
@@ -207,6 +227,8 @@
       </div>
     {/if}
   </div>
+
+  <div class="resizer" onmousedown={startSideResize} title="Drag to resize"></div>
 
   <div class="ch-diff">
     {#if diffLoading}
