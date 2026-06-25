@@ -359,7 +359,7 @@
               {/each}
             </div>
           {:else}
-            <CommitGraph {commits} {selected} {unpushed} dirty={headDirty} onwip={() => setTab("changes")} onselect={(id) => (selected = id)} />
+            <CommitGraph {commits} {selected} {unpushed} dirty={headDirty} onwip={() => setTab("changes")} onselect={(id) => (selected = id)} onbranch={(b) => { branch = b; onBranchChange(); }} />
           {/if}
         </div>
         {#if selected && !commitsLoading}

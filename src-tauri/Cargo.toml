@@ -1,6 +1,6 @@
 [package]
 name = "grove"
-version = "0.1.2"
+version = "0.1.3"
 description = "A git companion that sits beside your editor"
 authors = ["capad.io <capad.xyz@gmail.com>"]
 edition = "2021"

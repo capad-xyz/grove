@@ -4,10 +4,25 @@
   // topologically-ordered commits; rendering is virtualized so only the rows and
   // graph elements in (or near) the viewport are in the DOM, which keeps huge
   // histories smooth to scroll.
-  let { commits = [], selected = null, onselect = () => {}, unpushed = [], dirty = false, onwip = () => {} } = $props();
+  let { commits = [], selected = null, onselect = () => {}, unpushed = [], dirty = false, onwip = () => {}, onbranch = () => {} } = $props();
   const unpushedSet = $derived(new Set(unpushed));
 
   import Copy from "./Copy.svelte";
+
+  // Hover card: hovering a commit dot reveals its key details and quick jumps.
+  let hover = $state(null); // the hovered node
+  let hideTimer = null;
+  function showHover(n) {
+    clearTimeout(hideTimer);
+    hover = n;
+  }
+  function hideHover() {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => (hover = null), 140);
+  }
+  function keepHover() {
+    clearTimeout(hideTimer);
+  }
 
   const ROW = 34; // px per commit row (must match --row in styles.css)
   const LANE = 18; // px per graph lane
@@ -212,11 +227,24 @@
         {#if n.commit.id === selected}
           <circle cx={n.x} cy={n.y} r={R + 3.5} fill="none" stroke={n.color} stroke-width="2" opacity="0.55" />
         {/if}
+        {#if hover && hover.commit.id === n.commit.id}
+          <circle cx={n.x} cy={n.y} r={R + 2} fill="none" stroke={n.color} stroke-width="1.6" opacity="0.9" />
+        {/if}
         {#if unpushedSet.has(n.commit.id)}
           <circle cx={n.x} cy={n.y} r={R} fill="#121317" stroke={n.color} stroke-width="2" />
         {:else}
           <circle cx={n.x} cy={n.y} r={R} fill={n.color} stroke="#121317" stroke-width="2" />
         {/if}
+        <circle
+          class="cg-hit"
+          cx={n.x}
+          cy={n.y}
+          r="11"
+          fill="transparent"
+          onmouseenter={() => showHover(n)}
+          onmouseleave={hideHover}
+          onclick={() => onselect(n.commit.id)}
+        />
       {/each}
     </svg>
 
@@ -248,5 +276,28 @@
         </span>
       </button>
     {/each}
+
+    {#if hover}
+      <div class="cg-card" style="top:{hover.y}px; left:{hover.x + 16}px" onmouseenter={keepHover} onmouseleave={hideHover}>
+        <div class="cg-card-msg">{hover.commit.summary}</div>
+        {#if hover.commit.refs.length}
+          <div class="cg-card-refs">
+            {#each hover.commit.refs as ref}
+              <button class="cg-ref {refClass(ref)}" title="Jump to {ref}" onclick={() => { onbranch(ref); hover = null; }}>{ref}</button>
+            {/each}
+          </div>
+        {/if}
+        <div class="cg-card-meta">
+          <span class="cg-author">{hover.commit.author}</span>
+          <span class="cg-sep">·</span>
+          <span>{rel(hover.commit.time)}</span>
+          {#if hover.commit.parents.length > 1}<span class="cg-merge">merge</span>{/if}
+        </div>
+        <div class="cg-card-foot">
+          <span class="cg-sha">{hover.commit.short}<Copy text={hover.commit.id} title="Copy SHA" /></span>
+          <button class="cg-open" onclick={() => { onselect(hover.commit.id); hover = null; }}>View diff</button>
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
