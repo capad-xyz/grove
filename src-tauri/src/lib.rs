@@ -267,10 +267,12 @@ fn watch_repo(
     let (tx, rx) = std::sync::mpsc::channel::<()>();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         if let Ok(event) = res {
-            // Ignore git's own internal churn. Our reads (git status refreshes
-            // the index, etc.) touch these, which would otherwise re-trigger the
-            // watcher and spin a refresh loop. We still react to real worktree
-            // edits and to ref/HEAD changes (which is what moves the graph).
+            // Ignore git's own internal churn plus high-volume build/dependency
+            // dirs. `notify` watches recursively and does NOT honour .gitignore,
+            // so a Vite/cargo build or an editor touching node_modules would
+            // otherwise flood us with events and spin a refresh loop (the source
+            // of the random scroll/click stutter). We still react to real
+            // worktree edits and to ref/HEAD changes (which move the graph).
             let all_noise = !event.paths.is_empty()
                 && event.paths.iter().all(|p| {
                     let s = p.to_string_lossy().replace('\\', "/");
@@ -281,6 +283,12 @@ fn watch_repo(
                         || s.ends_with("/FETCH_HEAD")
                         || s.ends_with("/COMMIT_EDITMSG")
                         || s.ends_with("/ORIG_HEAD")
+                        || s.contains("/node_modules/")
+                        || s.contains("/target/")
+                        || s.contains("/dist/")
+                        || s.contains("/build/")
+                        || s.contains("/.svelte-kit/")
+                        || s.contains("/.next/")
                 });
             if !all_noise {
                 let _ = tx.send(());

@@ -151,51 +151,62 @@ fn current_branch(workdir: &str) -> Option<String> {
 pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
     let dir = workdir_of(path)?;
 
+    // One `git show` carries metadata *and* the parent list (%P), so we can pick
+    // the diff base without a separate `rev-parse` round-trip.
     let meta = write::git(
         &dir,
         &[
             "show",
             "-s",
-            &format!("--format=%H{FS}%h{FS}%an{FS}%ae{FS}%at{FS}%s{FS}%b"),
+            &format!("--format=%H{FS}%h{FS}%an{FS}%ae{FS}%at{FS}%P{FS}%s{FS}%b"),
             oid,
         ],
     )?;
-    let f: Vec<&str> = meta.trim_end_matches('\n').splitn(7, FS).collect();
-    if f.len() < 6 {
+    let f: Vec<&str> = meta.trim_end_matches('\n').splitn(8, FS).collect();
+    if f.len() < 7 {
         anyhow::bail!("unexpected commit metadata");
     }
 
     // Diff against the first parent (or empty tree) so merges and roots behave
-    // consistently with file_diff.
-    let base = diff_base(&dir, oid);
+    // consistently with file_diff. Parents come straight from %P above.
+    let base = f[5]
+        .split_whitespace()
+        .next()
+        .map(str::to_string)
+        .unwrap_or_else(|| "4b825dc642cb6eb9a060e54bf8d69288fbee4904".to_string());
 
-    // status letter per path (best effort; renames keep the new path)
+    // `--raw --numstat` emits both the status block (":… M\tpath") and the
+    // counts block ("adds\tdels\tpath") in a single subprocess. The raw block
+    // comes first, so statuses are known before we read the numstat rows.
     let mut status: HashMap<String, String> = HashMap::new();
-    let name_status = write::git(&dir, &["diff", "--name-status", &base, oid])?;
-    for line in name_status.lines().filter(|l| !l.is_empty()) {
-        let mut cols = line.split('\t');
-        let code = cols.next().unwrap_or("M");
-        if let Some(p) = cols.last() {
-            status.insert(p.to_string(), code.chars().next().unwrap_or('M').to_string());
-        }
-    }
-
     let mut files = Vec::new();
-    let numstat = write::git(&dir, &["diff", "--numstat", &base, oid])?;
-    for line in numstat.lines().filter(|l| !l.is_empty()) {
-        let mut cols = line.split('\t');
-        let adds = cols.next().unwrap_or("0");
-        let dels = cols.next().unwrap_or("0");
-        let p = cols.next().unwrap_or("").to_string();
-        if p.is_empty() {
-            continue;
+    let changes = write::git(&dir, &["diff", "--raw", "--numstat", &base, oid])?;
+    for line in changes.lines().filter(|l| !l.is_empty()) {
+        if line.starts_with(':') {
+            // ":100644 100644 sha sha M\tpath" (renames keep the new path).
+            let code = line
+                .split('\t')
+                .next()
+                .and_then(|h| h.rsplit(' ').next())
+                .unwrap_or("M");
+            if let Some(p) = line.split('\t').last() {
+                status.insert(p.to_string(), code.chars().next().unwrap_or('M').to_string());
+            }
+        } else {
+            let mut cols = line.split('\t');
+            let adds = cols.next().unwrap_or("0");
+            let dels = cols.next().unwrap_or("0");
+            let p = cols.next().unwrap_or("").to_string();
+            if p.is_empty() {
+                continue;
+            }
+            files.push(FileChange {
+                status: status.get(&p).cloned().unwrap_or_else(|| "M".into()),
+                additions: adds.parse().unwrap_or(0),
+                deletions: dels.parse().unwrap_or(0),
+                path: p,
+            });
         }
-        files.push(FileChange {
-            status: status.get(&p).cloned().unwrap_or_else(|| "M".into()),
-            additions: adds.parse().unwrap_or(0),
-            deletions: dels.parse().unwrap_or(0),
-            path: p,
-        });
     }
 
     Ok(CommitDetail {
@@ -204,8 +215,8 @@ pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
         author: f[2].to_string(),
         email: f[3].to_string(),
         date: f[4].parse().unwrap_or(0),
-        subject: f[5].to_string(),
-        body: f.get(6).map(|s| s.trim_end().to_string()).unwrap_or_default(),
+        subject: f[6].to_string(),
+        body: f.get(7).map(|s| s.trim_end().to_string()).unwrap_or_default(),
         files,
     })
 }

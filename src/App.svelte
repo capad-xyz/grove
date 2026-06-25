@@ -214,16 +214,41 @@
     }
   }
 
+  // Live-refresh plumbing. We coalesce watcher events away from active input so
+  // a refresh never lands mid-scroll/mid-click, and we only reassign the big
+  // reactive arrays when their contents actually changed (reassigning `commits`
+  // forces the whole graph layout to recompute, which is the expensive part).
+  let lastInteract = 0; // epoch ms of the last wheel/click/keypress
+  let refreshPending = false;
+  const markInteract = () => (lastInteract = Date.now());
+
+  const sameIds = (a, b) =>
+    a.length === b.length && (a.length === 0 || (a[0].id === b[0].id && a[a.length - 1].id === b[b.length - 1].id));
+
   // Re-fetch the repo's data when the watcher reports a change.
   async function refresh() {
     if (view !== "repo" || !path) return;
+    // Defer while the user is actively scrolling/clicking; retry once they idle.
+    const idle = Date.now() - lastInteract;
+    if (idle < 500) {
+      if (refreshPending) return;
+      refreshPending = true;
+      setTimeout(() => {
+        refreshPending = false;
+        refresh();
+      }, 500 - idle + 60);
+      return;
+    }
     try {
-      commits = await invoke("commit_graph", { path, limit: 400, refspec: branch || null });
-      unpushed = await invoke("unpushed_commits", { path }).catch(() => []);
-      repo = await invoke("repo_open", { path });
+      const next = await invoke("commit_graph", { path, limit: 400, refspec: branch || null });
+      if (!sameIds(commits, next)) commits = next; // skip the relayout when unchanged
+      const up = await invoke("unpushed_commits", { path }).catch(() => []);
+      if (up.length !== unpushed.length || up.some((x, i) => x !== unpushed[i])) unpushed = up;
+      const r = await invoke("repo_open", { path });
+      if (r?.head !== repo?.head) repo = r;
       invoke("repo_dirty", { path }).then((d) => (headDirty = d)).catch(() => {});
       invoke("list_files", { path }).then(addFiles).catch(() => {}); // pick up new files
-      liveTick++; // nudge the worktrees view to reload too
+      liveTick++; // nudge the changes/worktrees views to reload too
     } catch {}
   }
 
@@ -242,7 +267,10 @@
 {/snippet}
 
 <svelte:window
+  onwheel={markInteract}
+  onpointerdown={markInteract}
   onkeydown={(e) => {
+    markInteract();
     const tag = (e.target?.tagName || "").toLowerCase();
     const typing = tag === "input" || tag === "textarea" || e.target?.isContentEditable;
     const mod = e.ctrlKey || e.metaKey;
