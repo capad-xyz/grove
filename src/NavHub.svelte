@@ -27,6 +27,8 @@
   const fwdList = $derived(stack.slice(index + 1).map((loc, k) => ({ loc, i: index + 1 + k })));
 
   const label = (loc) => (loc?.view === "repo" ? loc.name : "Home");
+  const TAB = { graph: "Graph", changes: "Changes", worktrees: "Worktrees" };
+  const tabName = (loc) => (loc?.view === "repo" && loc.tab ? TAB[loc.tab] ?? "" : "");
 
   function openSwitch(e) {
     e.preventDefault();
@@ -99,6 +101,7 @@
           <button class="nh-item" onclick={() => jump(e.i)}>
             {@render locIcon(e.loc)}
             <span class="nh-lbl">{label(e.loc)}</span>
+            {#if tabName(e.loc)}<span class="nh-tab">{tabName(e.loc)}</span>{/if}
           </button>
         {/each}
       </div>
@@ -111,6 +114,7 @@
           <button class="nh-item" onclick={() => jump(e.i)}>
             {@render locIcon(e.loc)}
             <span class="nh-lbl">{label(e.loc)}</span>
+            {#if tabName(e.loc)}<span class="nh-tab">{tabName(e.loc)}</span>{/if}
           </button>
         {/each}
       </div>
@@ -128,6 +132,7 @@
     <button class="nh-loc" onclick={openSwitch} oncontextmenu={openSwitch} title="Switch project">
       <span class="nh-dot" class:repo={current?.view === "repo"}></span>
       <span class="nh-name">{current ? label(current) : "Grove"}</span>
+      {#if tabName(current)}<span class="nh-tab">{tabName(current)}</span>{/if}
       <svg class="nh-caret" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 14l5-5 5 5" /></svg>
     </button>
   </div>

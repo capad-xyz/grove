@@ -1628,6 +1628,20 @@ select {
   color: var(--muted);
   font-size: 12px;
 }
+.nh-tab {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.nh-loc .nh-tab {
+  margin-left: -1px;
+}
 /* Anchor the forward-history menu over the forward arrow. */
 .nh-menu-fwd {
   left: 36px;

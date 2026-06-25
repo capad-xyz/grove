@@ -42,11 +42,19 @@
   function recordLoc(loc) {
     if (navSuppress) return;
     const top = navStack[navIndex];
-    if (top && top.view === loc.view && top.path === loc.path) return;
+    if (top && top.view === loc.view && top.path === loc.path && top.tab === loc.tab) return;
     const base = navStack.slice(0, navIndex + 1);
     base.push(loc);
     navStack = base;
     navIndex = base.length - 1;
+  }
+
+  // Switching tabs (Graph / Changes / Worktrees) is a navigation, so it goes on
+  // the history stack too. Going back then steps through tabs before leaving.
+  function setTab(t) {
+    if (t === tab) return;
+    tab = t;
+    if (view === "repo" && path) recordLoc({ view: "repo", path, name: repoName, tab: t });
   }
 
   function enterHome() {
@@ -62,8 +70,16 @@
   async function applyLoc(loc) {
     navSuppress = true;
     try {
-      if (loc.view === "home") enterHome();
-      else await openRepo(loc.path);
+      if (loc.view === "home") {
+        enterHome();
+      } else if (view === "repo" && loc.path === path) {
+        // Same repo, different tab: just switch, no reload. Keeps back/forward
+        // instant and reliable when stepping through tabs.
+        tab = loc.tab ?? "graph";
+      } else {
+        await openRepo(loc.path);
+        tab = loc.tab ?? "graph";
+      }
     } finally {
       navSuppress = false;
     }
@@ -181,7 +197,7 @@
       commits = [];
       commitsLoading = true;
       openMode = null;
-      recordLoc({ view: "repo", path: p, name });
+      recordLoc({ view: "repo", path: p, name, tab: "graph" });
       commits = await invoke("commit_graph", { path: p, limit: 400, refspec: null });
       commitsLoading = false;
       unpushed = await invoke("unpushed_commits", { path: p }).catch(() => []);
@@ -319,9 +335,9 @@
           />
         {/if}
         <div class="switcher">
-          <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>
-          <button class:on={tab === "changes"} onclick={() => (tab = "changes")}>Changes</button>
-          <button class:on={tab === "worktrees"} onclick={() => (tab = "worktrees")}>Worktrees</button>
+          <button class:on={tab === "graph"} onclick={() => setTab("graph")}>Graph</button>
+          <button class:on={tab === "changes"} onclick={() => setTab("changes")}>Changes</button>
+          <button class:on={tab === "worktrees"} onclick={() => setTab("worktrees")}>Worktrees</button>
         </div>
         <button class="find-btn" onclick={() => (finderOpen = true)} title="Search files, commits, branches, content">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
@@ -343,7 +359,7 @@
               {/each}
             </div>
           {:else}
-            <CommitGraph {commits} {selected} {unpushed} dirty={headDirty} onwip={() => (tab = "changes")} onselect={(id) => (selected = id)} />
+            <CommitGraph {commits} {selected} {unpushed} dirty={headDirty} onwip={() => setTab("changes")} onselect={(id) => (selected = id)} />
           {/if}
         </div>
         {#if selected && !commitsLoading}
@@ -393,7 +409,7 @@
     {fileIndex}
     {recents}
     onfile={(f) => { fileView = f; finderOpen = false; }}
-    oncommit={(oid) => { selected = oid; tab = "graph"; finderOpen = false; }}
+    oncommit={(oid) => { selected = oid; setTab("graph"); finderOpen = false; }}
     onbranch={(b) => { branch = b; onBranchChange(); finderOpen = false; }}
     onopen={(p) => { finderOpen = false; openRepo(p); }}
     onbrowse={() => { finderOpen = false; openMode = "browse"; }}
