@@ -1,7 +1,9 @@
 <script>
   // Renders a commit graph: an SVG of lanes/nodes on the left, aligned with a
-  // column of commit rows on the right. Lane layout is computed here in one
-  // pass over the topologically-ordered commits from the Rust side.
+  // column of commit rows on the right. Lane layout is computed once over the
+  // topologically-ordered commits; rendering is virtualized so only the rows and
+  // graph elements in (or near) the viewport are in the DOM, which keeps huge
+  // histories smooth to scroll.
   let { commits = [], selected = null, onselect = () => {}, unpushed = [], dirty = false, onwip = () => {} } = $props();
   const unpushedSet = $derived(new Set(unpushed));
 
@@ -25,7 +27,6 @@
   const laneColor = (i) => LANE_COLORS[i % LANE_COLORS.length];
 
   const x = (lane) => PAD + lane * LANE;
-  const y = (i) => ROW / 2 + i * ROW;
 
   const layout = $derived.by(() => {
     const rowOf = new Map();
@@ -97,14 +98,14 @@
         const color = laneColor(pl);
         if (j === undefined) {
           // Parent outside the loaded window: trail off the bottom.
-          edges.push({ d: `M ${x1} ${y1} L ${x2} ${height}`, color });
+          edges.push({ d: `M ${x1} ${y1} L ${x2} ${height}`, color, top: Math.min(y1, height), bot: Math.max(y1, height) });
         } else {
           const y2 = yy(j);
           const d =
             x1 === x2
               ? `M ${x1} ${y1} L ${x2} ${y2}`
               : `M ${x1} ${y1} C ${x1} ${y1 + ROW * 0.6}, ${x2} ${y2 - ROW * 0.6}, ${x2} ${y2}`;
-          edges.push({ d, color });
+          edges.push({ d, color, top: Math.min(y1, y2), bot: Math.max(y1, y2) });
         }
       });
     }
@@ -125,8 +126,43 @@
     }
 
     const width = PAD + laneCount * LANE + PAD;
-    return { nodes, edges, width, height, wip };
+    return { nodes, edges, width, height, wip, off };
   });
+
+  // --- Virtualization: track the scroll viewport, render only what's near it ---
+  let scroller = $state(null);
+  let scrollTop = $state(0);
+  let viewH = $state(900);
+
+  function onScroll() {
+    scrollTop = scroller ? scroller.scrollTop : 0;
+  }
+
+  $effect(() => {
+    const el = scroller;
+    if (!el) return;
+    const measure = () => {
+      viewH = el.clientHeight;
+      scrollTop = el.scrollTop;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  const BUF = 6; // rows of overscan above/below the viewport
+  const visTop = $derived(scrollTop - ROW * 2);
+  const visBot = $derived(scrollTop + viewH + ROW * 2);
+  const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - layout.off - BUF));
+  const last = $derived(Math.min(commits.length, Math.ceil((scrollTop + viewH) / ROW) - layout.off + BUF));
+  const visRows = $derived.by(() => {
+    const out = [];
+    for (let i = first; i < last; i++) out.push({ c: commits[i], i });
+    return out;
+  });
+  const visNodes = $derived(layout.nodes.filter((n) => n.y >= visTop && n.y <= visBot));
+  const visEdges = $derived(layout.edges.filter((e) => e.bot >= visTop && e.top <= visBot));
 
   function rel(epoch) {
     const s = Math.max(0, Math.floor(Date.now() / 1000 - epoch));
@@ -149,58 +185,53 @@
   }
 </script>
 
-<div class="graph" style="--row:{ROW}px">
-  <svg
-    class="lanes"
-    width={layout.width}
-    height={layout.height}
-    style="min-width:{layout.width}px"
-  >
-    {#each layout.edges as e}
-      <path d={e.d} stroke={e.color} fill="none" stroke-width="2" />
-    {/each}
-    {#if layout.wip}
-      <path d={layout.wip.edge} stroke={layout.wip.color} fill="none" stroke-width="2" stroke-dasharray="3 3" opacity="0.8" />
-      <circle cx={layout.wip.x} cy={layout.wip.y} r={R} fill="#121317" stroke={layout.wip.color} stroke-width="2" stroke-dasharray="2.4 2.2" />
-    {/if}
-    {#each layout.nodes as n}
-      {#if n.commit.id === selected}
-        <circle cx={n.x} cy={n.y} r={R + 3.5} fill="none" stroke={n.color} stroke-width="2" opacity="0.55" />
+<div class="graph" bind:this={scroller} onscroll={onScroll} style="--row:{ROW}px">
+  <div class="graph-canvas" style="height:{layout.height}px">
+    <svg class="lanes" width={layout.width} height={layout.height} style="min-width:{layout.width}px">
+      {#each visEdges as e}
+        <path d={e.d} stroke={e.color} fill="none" stroke-width="2" />
+      {/each}
+      {#if layout.wip}
+        <path d={layout.wip.edge} stroke={layout.wip.color} fill="none" stroke-width="2" stroke-dasharray="3 3" opacity="0.8" />
+        <circle cx={layout.wip.x} cy={layout.wip.y} r={R} fill="#121317" stroke={layout.wip.color} stroke-width="2" stroke-dasharray="2.4 2.2" />
       {/if}
-      {#if unpushedSet.has(n.commit.id)}
-        <!-- unpushed: hollow node -->
-        <circle cx={n.x} cy={n.y} r={R} fill="#121317" stroke={n.color} stroke-width="2" />
-      {:else}
-        <circle cx={n.x} cy={n.y} r={R} fill={n.color} stroke="#121317" stroke-width="2" />
-      {/if}
-    {/each}
-  </svg>
+      {#each visNodes as n (n.commit.id)}
+        {#if n.commit.id === selected}
+          <circle cx={n.x} cy={n.y} r={R + 3.5} fill="none" stroke={n.color} stroke-width="2" opacity="0.55" />
+        {/if}
+        {#if unpushedSet.has(n.commit.id)}
+          <circle cx={n.x} cy={n.y} r={R} fill="#121317" stroke={n.color} stroke-width="2" />
+        {:else}
+          <circle cx={n.x} cy={n.y} r={R} fill={n.color} stroke="#121317" stroke-width="2" />
+        {/if}
+      {/each}
+    </svg>
 
-  <div class="rows">
     {#if dirty && commits.length}
-      <button class="row wip-row" onclick={onwip} title="Review uncommitted changes">
+      <button class="row wip-row" style="top:0px; left:{layout.width}px" onclick={onwip} title="Review uncommitted changes">
         <span class="refs"><span class="pill wip">working</span></span>
         <span class="summary">Uncommitted changes</span>
         <span class="meta"><span class="time">now</span></span>
       </button>
     {/if}
-    {#each commits as c}
+    {#each visRows as r (r.c.id)}
       <button
         class="row"
-        class:selected={selected === c.id}
-        onclick={() => onselect(c.id)}
+        class:selected={selected === r.c.id}
+        style="top:{(r.i + layout.off) * ROW}px; left:{layout.width}px"
+        onclick={() => onselect(r.c.id)}
       >
         <span class="refs">
-          {#each c.refs as r}
-            <span class="pill {refClass(r)}">{r}</span>
+          {#each r.c.refs as ref}
+            <span class="pill {refClass(ref)}">{ref}</span>
           {/each}
         </span>
-        <span class="summary">{c.summary}</span>
+        <span class="summary">{r.c.summary}</span>
         <span class="meta">
-          <span class="author">{c.author}</span>
-          <span class="time">{rel(c.time)}</span>
-          <span class="hash">{c.short}</span>
-          <Copy text={c.id} title="Copy SHA" />
+          <span class="author">{r.c.author}</span>
+          <span class="time">{rel(r.c.time)}</span>
+          <span class="hash">{r.c.short}</span>
+          <Copy text={r.c.id} title="Copy SHA" />
         </span>
       </button>
     {/each}

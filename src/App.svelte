@@ -333,7 +333,17 @@
       </div>
 {/if}
 
-<NavHub stack={navStack} index={navIndex} onback={goBack} onforward={goForward} onjump={jumpTo} />
+<NavHub
+  stack={navStack}
+  index={navIndex}
+  {recents}
+  dirty={dirtyMap}
+  onback={goBack}
+  onforward={goForward}
+  onjump={jumpTo}
+  onopen={openRepo}
+  onhome={backToPicker}
+/>
 
 <OpenModals
   mode={openMode}
