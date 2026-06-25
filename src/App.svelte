@@ -261,41 +261,41 @@
     {:else}
       <div class="app">
         <div class="topbar">
-      <button class="nav-home" onclick={backToPicker} title="Back to home (Ctrl+Left)">
-        <svg class="chev" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 5l-7 7 7 7" /></svg>
+      <button class="nav-home" onclick={backToPicker} title="Home (Ctrl+Left)">
         {@render leaf()}
         <span class="nav-word">Grove</span>
         <span class="nav-alpha">ALPHA</span>
       </button>
+      <div class="tb-sep"></div>
       <div class="repo-chip">
         <span class="name">{repoName}<Copy text={repo.workdir ?? path} title="Copy repo path" /></span>
         {#if repo.head}<span class="branch">{@render leaf()}{repo.head}<Copy text={repo.head} title="Copy branch name" /></span>{/if}
-        <span class="count">{commits.length} commits</span>
-        {#if live}<span class="live" title="Watching for changes"><span class="live-dot"></span>live</span>{/if}
+        <span class="meta-dots">
+          <span class="count">{commits.length} commits</span>
+          {#if live}<span class="live" title="Watching for changes"><span class="live-dot"></span>live</span>{/if}
+        </span>
       </div>
-      <span class="legend">
-        <span class="lg filled"></span>pushed
-        <span class="lg hollow"></span>local
-      </span>
-      {#if branches.length}
-        <BranchPicker
-          {branches}
-          value={branch}
-          onselect={(b) => {
-            branch = b;
-            onBranchChange();
-          }}
-        />
-      {/if}
-      <div class="switcher">
-        <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>
-        <button class:on={tab === "changes"} onclick={() => (tab = "changes")}>Changes</button>
-        <button class:on={tab === "worktrees"} onclick={() => (tab = "worktrees")}>Worktrees</button>
+      <div class="tb-right">
+        {#if branches.length}
+          <BranchPicker
+            {branches}
+            value={branch}
+            onselect={(b) => {
+              branch = b;
+              onBranchChange();
+            }}
+          />
+        {/if}
+        <div class="switcher">
+          <button class:on={tab === "graph"} onclick={() => (tab = "graph")}>Graph</button>
+          <button class:on={tab === "changes"} onclick={() => (tab = "changes")}>Changes</button>
+          <button class:on={tab === "worktrees"} onclick={() => (tab = "worktrees")}>Worktrees</button>
+        </div>
+        <button class="find-btn" onclick={() => (finderOpen = true)} title="Search files, commits, branches, content">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
+          Search <kbd>Ctrl K</kbd>
+        </button>
       </div>
-      <button class="find-btn" onclick={() => (finderOpen = true)} title="Search files, commits, branches, content">
-        Search <kbd>Ctrl K</kbd>
-      </button>
-      <button class="open-another" onclick={backToPicker}>Open another</button>
     </div>
 
     {#if tab === "graph"}

@@ -133,9 +133,16 @@
   let scroller = $state(null);
   let scrollTop = $state(0);
   let viewH = $state(900);
+  let raf = 0;
 
+  // Coalesce rapid scroll events to one update per frame so fast flicks don't
+  // flood the main thread with re-derivations.
   function onScroll() {
-    scrollTop = scroller ? scroller.scrollTop : 0;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      if (scroller) scrollTop = scroller.scrollTop;
+    });
   }
 
   $effect(() => {
@@ -148,12 +155,16 @@
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    };
   });
 
-  const BUF = 6; // rows of overscan above/below the viewport
-  const visTop = $derived(scrollTop - ROW * 2);
-  const visBot = $derived(scrollTop + viewH + ROW * 2);
+  const BUF = 14; // rows of overscan above/below the viewport (smooths fast scroll)
+  const visTop = $derived(scrollTop - ROW * BUF);
+  const visBot = $derived(scrollTop + viewH + ROW * BUF);
   const first = $derived(Math.max(0, Math.floor(scrollTop / ROW) - layout.off - BUF));
   const last = $derived(Math.min(commits.length, Math.ceil((scrollTop + viewH) / ROW) - layout.off + BUF));
   const visRows = $derived.by(() => {
@@ -161,7 +172,9 @@
     for (let i = first; i < last; i++) out.push({ c: commits[i], i });
     return out;
   });
-  const visNodes = $derived(layout.nodes.filter((n) => n.y >= visTop && n.y <= visBot));
+  // Nodes are in commit order, so slice directly (O(visible)) instead of scanning
+  // all of them every frame. Edges can span far, so keep a range overlap test.
+  const visNodes = $derived(layout.nodes.slice(first, last));
   const visEdges = $derived(layout.edges.filter((e) => e.bot >= visTop && e.top <= visBot));
 
   function rel(epoch) {
