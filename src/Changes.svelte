@@ -23,8 +23,11 @@
     e.preventDefault();
     const startX = e.clientX;
     const startW = sideW;
+    const chEl = e.currentTarget.closest(".ch");
     const onMove = (ev) => {
-      sideW = Math.max(220, Math.min(window.innerWidth - 320, startW + (ev.clientX - startX)));
+      // Keep at least 360px for the diff, all within the panel.
+      const max = chEl ? Math.max(220, chEl.clientWidth - 360) : window.innerWidth - 360;
+      sideW = Math.max(220, Math.min(max, startW + (ev.clientX - startX)));
     };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);

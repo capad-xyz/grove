@@ -3,11 +3,31 @@
   // horizontal scroll. Shared by the commit detail panel and the file viewer.
   import { wrapPref } from "./diffwrap.svelte.js";
   import { langFor, highlightLine } from "./highlight.js";
-  let { patch = "", empty = "No changes.", file = "" } = $props();
+  let { patch = "", empty = "No changes.", file = "", query = "" } = $props();
 
   const lang = $derived(langFor(file));
 
   const lines = $derived(parseDiff(patch));
+  const q = $derived(query.trim());
+  const ql = $derived(q.toLowerCase());
+
+  const escHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const matches = (d) => ql && d.kind !== "hunk" && d.text.toLowerCase().includes(ql);
+
+  // Wrap each occurrence of the query in the line with a <mark>, escaping the
+  // surrounding text (we drop syntax colour on hit lines, which is fine).
+  function findHl(text) {
+    const lower = text.toLowerCase();
+    let i = 0;
+    let from = 0;
+    let out = "";
+    while ((i = lower.indexOf(ql, from)) !== -1) {
+      out += escHtml(text.slice(from, i)) + '<mark class="fh">' + escHtml(text.slice(i, i + q.length)) + "</mark>";
+      from = i + q.length;
+    }
+    out += escHtml(text.slice(from));
+    return out;
+  }
 
   function parseDiff(p) {
     if (!p) return [];
@@ -44,11 +64,11 @@
     <div class="dloading">{empty}</div>
   {:else}
     {#each lines as d}
-      <div class="dl {d.kind}">
+      <div class="dl {d.kind}" class:find-line={matches(d)}>
         <span class="gut">{d.oldNo}</span>
         <span class="gut">{d.newNo}</span>
         <span class="sign">{d.sign}</span>
-        <span class="code">{#if d.kind === "hunk"}{d.text}{:else}{@html highlightLine(d.text, lang)}{/if}</span>
+        <span class="code">{#if d.kind === "hunk"}{d.text}{:else if matches(d)}{@html findHl(d.text)}{:else}{@html highlightLine(d.text, lang)}{/if}</span>
       </div>
     {/each}
   {/if}

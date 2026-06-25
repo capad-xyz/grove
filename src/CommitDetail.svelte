@@ -21,8 +21,11 @@
     e.preventDefault();
     const startY = e.clientY;
     const startH = filesH;
+    const detailEl = e.currentTarget.closest(".detail");
     const onMove = (ev) => {
-      filesH = Math.max(74, Math.min(window.innerHeight - 240, startH + (ev.clientY - startY)));
+      // Cap so the diff always keeps ~150px below the file list, in view.
+      const max = detailEl ? Math.max(74, detailEl.clientHeight - 200) : window.innerHeight - 240;
+      filesH = Math.max(74, Math.min(max, startH + (ev.clientY - startY)));
     };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);

@@ -111,8 +111,12 @@
 
   function startResize(e) {
     e.preventDefault();
+    const bodyEl = e.currentTarget.closest(".body");
     const onMove = (ev) => {
-      detailWidth = Math.max(340, Math.min(window.innerWidth - 280, window.innerWidth - ev.clientX));
+      const r = bodyEl ? bodyEl.getBoundingClientRect() : { right: window.innerWidth, width: window.innerWidth };
+      // Keep at least 360px for the graph and 320px for the detail, both in view.
+      const max = Math.max(320, r.width - 360);
+      detailWidth = Math.max(320, Math.min(max, r.right - ev.clientX));
     };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
