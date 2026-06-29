@@ -1,5 +1,9 @@
 # Grove
 
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Status](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
+[![Built with](https://img.shields.io/badge/built%20with-Tauri%20%2B%20Svelte-ff3e00.svg)](#stack-at-a-glance)
+
 A featherweight Git companion that sits beside your AI coding editor and gives
 you the commit, diff, and worktree review surface those editors treat as an
 afterthought. Read-first and beautiful: open any folder and instantly see the
@@ -73,3 +77,7 @@ builds are incremental.
 ## License
 
 GPL-3.0. Free as in actually free, and forks stay open.
+
+---
+
+Built by [capad](https://github.com/capad-xyz). Questions or feedback: oss@capad.fyi.

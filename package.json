@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.3",
   "type": "module",
+  "author": "capad <oss@capad.fyi>",
+  "license": "GPL-3.0-or-later",
+  "repository": "https://github.com/capad-xyz/grove",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
