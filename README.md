@@ -80,4 +80,4 @@ GPL-3.0. Free as in actually free, and forks stay open.
 
 ---
 
-Built by [capad](https://github.com/capad-xyz). Questions or feedback: hi@capad.fyi.
+Built by [capad](https://github.com/capad-xyz). Questions or feedback: oss@capad.fyi.

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.3",
   "type": "module",
-  "author": "capad <hi@capad.fyi>",
+  "author": "capad <oss@capad.fyi>",
   "license": "GPL-3.0-or-later",
   "repository": "https://github.com/capad-xyz/grove",
   "scripts": {
