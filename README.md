@@ -1,7 +1,7 @@
 # Grove
 
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
+[![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
 [![Built with](https://img.shields.io/badge/built%20with-Tauri%20%2B%20Svelte-ff3e00.svg)](#stack-at-a-glance)
 
 A featherweight Git companion that sits beside your AI coding editor and gives
@@ -47,11 +47,24 @@ Grove's wedge is the combination almost nobody does well:
 
 ## Status
 
-Pre-alpha. The app scaffold builds and runs: a Tauri 2 + Svelte 5 shell with a
-Rust core that opens a folder and reports whether it is a git repo (the first
-slice of the read path). The v0 hero features (worktree dashboard, commit graph,
-diff review, live refresh) are next. See [DESIGN.md](DESIGN.md) for the
-architecture and decisions.
+Alpha — the v0 hero features have shipped. As of
+[v0.1.3-alpha](https://github.com/capad-xyz/grove/releases/latest) (Windows x64
+installers on the [releases page](https://github.com/capad-xyz/grove/releases)):
+
+- Commit graph with a live WIP node, virtualized for large repos, with hover
+  cards on commit nodes (message, refs, author, copyable SHA)
+- Working changes: stage / unstage, commit, generate a message with your local
+  agent
+- Worktrees view
+- Syntax-highlighted diff review with Ctrl+F find inside the expanded diff
+- One spotlight search (Ctrl+K) across projects, files, commits, branches, and
+  content
+- Live refresh tuned to ignore build/dependency noise and defer while you
+  scroll
+- Persistent navigation hub with browser-style back / forward history
+
+Windows only for now; installers are unsigned, so SmartScreen will warn. See
+[DESIGN.md](DESIGN.md) for the architecture and decisions.
 
 ## Running it
 
