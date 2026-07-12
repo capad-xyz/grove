@@ -3,21 +3,29 @@
   import Skeleton from "./Skeleton.svelte";
   import Copy from "./Copy.svelte";
 
-  let { path, onopen, tick = 0 } = $props();
+  let { path, onopen, pushed = null } = $props();
 
   let list = $state([]);
   let error = $state("");
   let loading = $state(true);
 
+  // Initial load when the panel opens; afterwards the backend pushes fresh
+  // worktree state whenever refs, the index, or worktree metadata change.
   $effect(() => {
     const p = path;
-    tick; // re-run when live refresh nudges
     loading = true;
     error = "";
     invoke("worktrees", { path: p })
       .then((w) => (list = w))
       .catch((e) => (error = String(e)))
       .finally(() => (loading = false));
+  });
+
+  $effect(() => {
+    if (pushed) {
+      list = pushed;
+      loading = false;
+    }
   });
 </script>
 
