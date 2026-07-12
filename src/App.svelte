@@ -111,11 +111,10 @@
     invoke("recent_repos")
       .then((r) => {
         recents = r;
-        for (const repo of r) {
-          invoke("repo_dirty", { path: repo.path })
-            .then((d) => (dirtyMap = { ...dirtyMap, [repo.path]: d }))
-            .catch(() => {});
-        }
+        // One batched call instead of a subprocess per repo at launch.
+        invoke("repos_dirty", { paths: r.map((x) => x.path) })
+          .then((m) => (dirtyMap = { ...dirtyMap, ...m }))
+          .catch(() => {});
       })
       .catch(() => {});
   }

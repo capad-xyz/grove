@@ -232,6 +232,24 @@ async fn repo_dirty(path: String) -> bool {
         .unwrap_or(false)
 }
 
+/// Dirty state for several repos in one call. The checks run sequentially on
+/// one blocking task — the sidebar previously spawned a subprocess per recent
+/// repo simultaneously at launch.
+#[tauri::command]
+async fn repos_dirty(paths: Vec<String>) -> std::collections::HashMap<String, bool> {
+    tauri::async_runtime::spawn_blocking(move || {
+        paths
+            .into_iter()
+            .map(|p| {
+                let d = repo::read::is_dirty(&p).unwrap_or(false);
+                (p, d)
+            })
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
+}
+
 /// Generate a commit message from the staged diff using a local CLI agent.
 #[tauri::command]
 async fn generate_commit_message(path: String) -> Result<String, String> {
@@ -339,7 +357,25 @@ fn watch_repo(
     let svc = RepoService::start(app, path.clone());
     let watcher = repo::watch::start_watcher(svc.clone(), &path).map_err(|e| e.to_string())?;
     *state.0.lock().unwrap() = Some((watcher, svc));
+    maybe_write_commit_graph(path);
     Ok(())
+}
+
+/// Best-effort `git commit-graph write --reachable`, once per repo per
+/// session, in the background. The commit-graph file gives both the git CLI
+/// and (later) gix generation-number traversal, which speeds up every log/
+/// walk on large histories.
+fn maybe_write_commit_graph(path: String) {
+    use std::collections::HashSet;
+    use std::sync::OnceLock;
+    static DONE: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    let done = DONE.get_or_init(|| Mutex::new(HashSet::new()));
+    if !done.lock().unwrap().insert(path.clone()) {
+        return;
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let _ = repo::write::git(&path, &["commit-graph", "write", "--reachable"]);
+    });
 }
 
 /// Stop watching the current repository.
@@ -380,6 +416,7 @@ pub fn run() {
             refresh_repo,
             generate_commit_message,
             repo_dirty,
+            repos_dirty,
             clone_repo,
             watch_repo,
             unwatch_repo,

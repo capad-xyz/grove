@@ -298,52 +298,82 @@ fn dirs_home() -> String {
 }
 
 /// List the repository's linked working trees with their state.
+/// The per-worktree status/ahead-behind checks run concurrently, so wall time
+/// is ~one check rather than 2×N sequential subprocesses.
 pub fn worktrees(path: &str) -> Result<Vec<Worktree>> {
     let dir = workdir_of(path)?;
     let out = write::git_read(&dir, &["worktree", "list", "--porcelain"])?;
     let normalized = out.replace('\r', "");
-    let mut list = Vec::new();
 
-    for (i, block) in normalized.split("\n\n").enumerate() {
+    struct Meta {
+        path: String,
+        head: String,
+        branch: Option<String>,
+        detached: bool,
+    }
+    let mut metas = Vec::new();
+    for block in normalized.split("\n\n") {
         let block = block.trim();
         if block.is_empty() {
             continue;
         }
-        let mut wt_path = String::new();
-        let mut head = String::new();
-        let mut branch = None;
-        let mut detached = false;
+        let mut m = Meta {
+            path: String::new(),
+            head: String::new(),
+            branch: None,
+            detached: false,
+        };
         for line in block.lines() {
             if let Some(p) = line.strip_prefix("worktree ") {
-                wt_path = p.to_string();
+                m.path = p.to_string();
             } else if let Some(h) = line.strip_prefix("HEAD ") {
-                head = h.chars().take(7).collect();
+                m.head = h.chars().take(7).collect();
             } else if let Some(b) = line.strip_prefix("branch ") {
-                branch = Some(b.trim_start_matches("refs/heads/").to_string());
+                m.branch = Some(b.trim_start_matches("refs/heads/").to_string());
             } else if line.trim() == "detached" {
-                detached = true;
+                m.detached = true;
             }
         }
-        if wt_path.is_empty() {
-            continue;
+        if !m.path.is_empty() {
+            metas.push(m);
         }
-        let dirty = write::git_read(&wt_path, &["status", "--porcelain"])
-            .map(|s| !s.trim().is_empty())
-            .unwrap_or(false);
-        let (ahead, behind, has_upstream) = ahead_behind(&wt_path);
-        list.push(Worktree {
+    }
+
+    let checks: Vec<(bool, (u32, u32, bool))> = std::thread::scope(|s| {
+        let handles: Vec<_> = metas
+            .iter()
+            .map(|m| {
+                let wt = m.path.clone();
+                s.spawn(move || {
+                    let dirty = write::git_read(&wt, &["status", "--porcelain"])
+                        .map(|s| !s.trim().is_empty())
+                        .unwrap_or(false);
+                    (dirty, ahead_behind(&wt))
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap_or((false, (0, 0, false))))
+            .collect()
+    });
+
+    Ok(metas
+        .into_iter()
+        .zip(checks)
+        .enumerate()
+        .map(|(i, (m, (dirty, (ahead, behind, has_upstream))))| Worktree {
             is_main: i == 0,
-            path: wt_path,
-            branch,
-            head,
-            detached,
+            path: m.path,
+            branch: m.branch,
+            head: m.head,
+            detached: m.detached,
             dirty,
             ahead,
             behind,
             has_upstream,
-        });
-    }
-    Ok(list)
+        })
+        .collect())
 }
 
 /// (ahead, behind, has_upstream) for the working tree's HEAD vs its upstream.
@@ -550,7 +580,10 @@ pub fn blame(path: &str, file: &str) -> Result<Vec<BlameLine>> {
 /// Working-tree status: staged, unstaged, and untracked files.
 pub fn working_status(path: &str) -> Result<WorkingStatus> {
     let dir = workdir_of(path)?;
-    let out = write::git_read(&dir, &["status", "--porcelain", "--untracked-files=all"])?;
+    // `normal` collapses untracked directories to one entry instead of walking
+    // them; on a repo with a fresh dependency dir that's the difference
+    // between ~50ms and multiple seconds.
+    let out = write::git_read(&dir, &["status", "--porcelain", "--untracked-files=normal"])?;
     let mut staged = Vec::new();
     let mut unstaged = Vec::new();
     let mut untracked = Vec::new();
