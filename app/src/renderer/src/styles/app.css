@@ -451,6 +451,100 @@
   }
 }
 
+/* --- Active filter chip --------------------------------------------------- */
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
+  height: var(--row);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  flex: none;
+}
+.filter:hover {
+  background: var(--surface-raised);
+}
+.filter-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+/* --- Spotlight ------------------------------------------------------------
+   Covers the surface at every width, unlike `.overlay`, which is a
+   narrow-mode presentation for the diff and is hidden above the breakpoint. */
+
+.spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.spot-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: var(--row-lg);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+.spot-head input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.spot-head input:focus {
+  border: 0;
+}
+.spot-list {
+  flex: 1;
+  min-height: 0;
+}
+.spot-row {
+  cursor: pointer;
+}
+/* Highlight is keyboard-driven, so it cannot rely on :hover — but it uses the
+   same brightness-plus-rule vocabulary as every other selected row. */
+.spot-row[data-highlighted='true'] {
+  background: var(--surface-raised);
+  border-left-color: var(--line-strong);
+}
+.spot-primary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.spot-row[data-highlighted='true'] .spot-primary {
+  color: var(--text);
+}
+.spot-secondary {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
 /* --- Status -------------------------------------------------------------- */
 
 .status {

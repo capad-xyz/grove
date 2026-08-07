@@ -79,6 +79,58 @@ function checks(repo: string): Check[] {
           ? 'rejected: not a git repository'
           : (() => { throw new Error('wrong error: ' + e.message) })())`,
     },
+    // Spotlight's four tiers. Files and branches are matched in the renderer,
+    // but these are the calls that feed them, and the two git-backed tiers are
+    // otherwise only ever exercised against fixtures.
+    {
+      name: 'searchCommits finds by message',
+      script: `window.grove.searchCommits(${r}, 'Engine').then(c => c.length > 0
+        ? c.length + ' hit(s), first: ' + JSON.stringify(c[0].summary.slice(0, 40))
+        : (() => { throw new Error('no commits matched "Engine"') })())`,
+    },
+    {
+      name: 'searchCommits misses return empty, not an error',
+      // The needle is assembled at runtime so the literal never exists in any
+      // tracked file — including this one. A hardcoded string would be found by
+      // the very search it is meant to come up empty on, because these tests
+      // live inside the repository they search.
+      script: `window.grove.searchCommits(${r}, ['zq', 'no', 'such', 'thing', 'zq'].join('-'))
+        .then(c => c.length === 0 ? 'empty' : (() => { throw new Error(c.length + ' unexpected hits') })())`,
+    },
+    {
+      name: 'grepRepo finds file contents',
+      script: `window.grove.grepRepo(${r}, 'LOCK_RETRY_MS').then(h => h.length > 0
+        ? h.length + ' hit(s), first: ' + h[0].file + ':' + h[0].line
+        : (() => { throw new Error('no content matched') })())`,
+    },
+    {
+      name: 'grepRepo with no matches exits cleanly',
+      // git grep exits non-zero on no matches; that must read as "no hits".
+      // Needle assembled at runtime — see the note on searchCommits above.
+      script: `window.grove.grepRepo(${r}, ['zq', 'no', 'such', 'thing', 'zq'].join('-'))
+        .then(h => h.length === 0 ? 'empty' : (() => { throw new Error(h.length + ' unexpected hits: ' + h.map(x=>x.file).join(',')) })())`,
+    },
+    {
+      name: 'allFiles feeds the file index',
+      script: `window.grove.allFiles(${r}).then(f => f.length > 0 && f.includes('DESIGN.md')
+        ? f.length + ' paths'
+        : (() => { throw new Error('file index looks wrong: ' + f.length + ' paths') })())`,
+    },
+    {
+      name: 'fileHistory narrows to one file',
+      script: `window.grove.fileHistory(${r}, 'DESIGN.md').then(c => c.length > 0
+        ? c.length + ' commit(s) touched DESIGN.md'
+        : (() => { throw new Error('no history for DESIGN.md') })())`,
+    },
+    {
+      name: 'commitGraph honours a refspec',
+      script: `Promise.all([
+        window.grove.commitGraph(${r}, 500, null),
+        window.grove.commitGraph(${r}, 500, 'main'),
+      ]).then(([all, main]) => main.length > 0 && main.length <= all.length
+        ? main.length + ' on main of ' + all.length + ' total'
+        : (() => { throw new Error('refspec ignored: ' + main.length + ' vs ' + all.length) })())`,
+    },
     {
       name: 'watchRepo emits live coordinator events',
       script: `new Promise((resolve, reject) => {

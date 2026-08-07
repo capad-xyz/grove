@@ -10,6 +10,7 @@
 
 import type {
   CommitNode,
+  GrepHit,
   DirListing,
   RecentRepo,
   RepoSummary,
@@ -105,6 +106,50 @@ export const FIXTURE_WORKTREES: Worktree[] = [
     behind: 4,
     has_upstream: true,
   },
+];
+
+export const FIXTURE_BRANCHES = ['reauthor', 'main', 'agent/blame-gutter'];
+
+/** Enough real paths to exercise ranking: shared basenames, deep nesting. */
+export const FIXTURE_FILES = [
+  'app/DESIGN-SYSTEM.md',
+  'app/README.md',
+  'app/electron-builder.yml',
+  'app/src/main/index.ts',
+  'app/src/main/ipc.ts',
+  'app/src/main/smoke.ts',
+  'app/src/preload/index.ts',
+  'app/src/renderer/index.html',
+  'app/src/renderer/src/App.tsx',
+  'app/src/renderer/src/components/Chrome.tsx',
+  'app/src/renderer/src/components/Commits.tsx',
+  'app/src/renderer/src/components/Diff.tsx',
+  'app/src/renderer/src/components/GraphGutter.tsx',
+  'app/src/renderer/src/components/Home.tsx',
+  'app/src/renderer/src/components/WorkingTree.tsx',
+  'app/src/renderer/src/data/graph.ts',
+  'app/src/renderer/src/data/match.ts',
+  'app/src/renderer/src/data/seen.ts',
+  'app/src/renderer/src/data/source.ts',
+  'app/src/renderer/src/styles/app.css',
+  'app/src/renderer/src/styles/tokens.css',
+  'engine/src/git.ts',
+  'engine/src/index.ts',
+  'engine/src/parse.ts',
+  'engine/src/read.ts',
+  'engine/src/service.ts',
+  'engine/src/watch.ts',
+  'engine/src/write.ts',
+  'DESIGN.md',
+  'README.md',
+  'RUNBOOK.md',
+];
+
+export const FIXTURE_GREP: GrepHit[] = [
+  { file: 'engine/src/git.ts', line: 25, text: 'const LOCK_RETRY_MS = [100, 300, 800, 1500];' },
+  { file: 'engine/src/write.ts', line: 71, text: 'export function git(workdir, args) {' },
+  { file: 'app/src/main/ipc.ts', line: 44, text: 'function handle(channel, fn) {' },
+  { file: 'engine/src/service.ts', line: 38, text: 'const QUIET_MS = 80;' },
 ];
 
 export const FIXTURE_RECENTS: RecentRepo[] = [

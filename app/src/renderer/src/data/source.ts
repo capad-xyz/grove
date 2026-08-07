@@ -11,6 +11,7 @@
 import type {
   CommitNode,
   DirListing,
+  GrepHit,
   RecentRepo,
   RepoEventEnvelope,
   RepoSummary,
@@ -19,9 +20,12 @@ import type {
 } from '@grove/engine';
 
 import {
+  FIXTURE_BRANCHES,
   FIXTURE_COMMITS,
   FIXTURE_DIFF,
   FIXTURE_DIR,
+  FIXTURE_FILES,
+  FIXTURE_GREP,
   FIXTURE_RECENTS,
   FIXTURE_REPO,
   FIXTURE_STATUS,
@@ -31,7 +35,8 @@ import {
 export interface Source {
   readonly live: boolean;
   open(path: string): Promise<RepoSummary>;
-  commits(path: string, limit: number): Promise<CommitNode[]>;
+  /** `refspec` narrows to one branch's history; null walks every ref. */
+  commits(path: string, limit: number, refspec?: string | null): Promise<CommitNode[]>;
   status(path: string): Promise<WorkingStatus>;
   worktrees(path: string): Promise<Worktree[]>;
   fileDiff(path: string, oid: string, file: string): Promise<string>;
@@ -39,6 +44,14 @@ export interface Source {
   onEvent(listener: (e: RepoEventEnvelope) => void): () => void;
   watch(path: string): Promise<void>;
   unwatch(): Promise<void>;
+
+  // --- Search. Files come back once per repo and are matched in the renderer;
+  //     commits and content go to git on every (debounced) query. ---
+  branches(path: string): Promise<string[]>;
+  files(path: string): Promise<string[]>;
+  searchCommits(path: string, query: string): Promise<CommitNode[]>;
+  grep(path: string, query: string): Promise<GrepHit[]>;
+  fileHistory(path: string, file: string): Promise<CommitNode[]>;
 
   // --- Choosing a repository ---
   recents(): Promise<RecentRepo[]>;
@@ -60,7 +73,7 @@ export interface Source {
 const liveSource = (): Source => ({
   live: true,
   open: (p) => window.grove.openRepo(p),
-  commits: (p, limit) => window.grove.commitGraph(p, limit, null),
+  commits: (p, limit, refspec = null) => window.grove.commitGraph(p, limit, refspec),
   status: (p) => window.grove.workingStatus(p),
   worktrees: (p) => window.grove.worktrees(p),
   fileDiff: (p, oid, file) => window.grove.fileDiff(p, oid, file),
@@ -77,6 +90,15 @@ const liveSource = (): Source => ({
   onEvent: (l) => window.grove.onRepoEvent(l),
   watch: (p) => window.grove.watchRepo(p),
   unwatch: () => window.grove.unwatchRepo(),
+
+  branches: (p) => window.grove.branches(p),
+  // `allFiles` includes paths that only ever existed in history, so Spotlight
+  // can find a file that was deleted three months ago — which is exactly when
+  // you need to search for one.
+  files: (p) => window.grove.allFiles(p),
+  searchCommits: (p, q) => window.grove.searchCommits(p, q),
+  grep: (p, q) => window.grove.grepRepo(p, q),
+  fileHistory: (p, file) => window.grove.fileHistory(p, file),
 
   recents: () => window.grove.recentRepos(),
   remember: (p, name) => window.grove.addRecentRepo(p, name),
@@ -151,7 +173,16 @@ const fixtureSource = (): Source => {
   return {
     live: false,
     open: () => wait(FIXTURE_REPO),
-    commits: (_p, limit) => wait(commits.slice(0, limit)),
+    // Honours `refspec` rather than ignoring it: a fixture that returned the
+    // same list whichever branch you asked for would make the harness a liar
+    // about filtering, which is the one thing it is being used to check.
+    // Models "that branch's history" as the ref's commit and everything under
+    // it, which is close enough to be a fair test of the UI.
+    commits: (_p, limit, refspec = null) => {
+      if (!refspec) return wait(commits.slice(0, limit));
+      const at = commits.findIndex((c) => c.refs.includes(refspec));
+      return wait((at === -1 ? commits : commits.slice(at)).slice(0, limit));
+    },
     status: () => wait(structuredClone(state)),
     worktrees: () => wait(FIXTURE_WORKTREES),
     fileDiff: () => wait(FIXTURE_DIFF),
@@ -162,6 +193,29 @@ const fixtureSource = (): Source => {
     },
     watch: () => wait(undefined),
     unwatch: () => wait(undefined),
+
+    branches: () => wait(FIXTURE_BRANCHES),
+    files: () => wait(FIXTURE_FILES),
+    // Mirrors the engine's ordering: hash, then message, then author.
+    searchCommits: (_p, q) =>
+      wait(
+        FIXTURE_COMMITS.filter((c) => {
+          const term = q.trim().toLowerCase();
+          return (
+            c.short.startsWith(term) ||
+            c.summary.toLowerCase().includes(term) ||
+            c.author.toLowerCase().includes(term)
+          );
+        }).slice(0, 8),
+        220,
+      ),
+    grep: (_p, q) =>
+      wait(
+        FIXTURE_GREP.filter((h) => h.text.toLowerCase().includes(q.trim().toLowerCase())),
+        260,
+      ),
+    fileHistory: (_p, file) =>
+      wait(FIXTURE_COMMITS.filter((_, i) => (file.length + i) % 3 !== 0).slice(0, 5)),
 
     recents: () => wait(FIXTURE_RECENTS),
     remember: () => wait(FIXTURE_RECENTS),

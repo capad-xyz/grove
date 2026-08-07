@@ -14,6 +14,8 @@ import type { CommitNode, RepoSummary, WorkingStatus, Worktree } from '@grove/en
 import { Commits } from './components/Commits';
 import { Diff } from './components/Diff';
 import { Home, nameOf } from './components/Home';
+import { Spotlight, type Pick } from './components/Spotlight';
+import { indexFiles, type FileEntry } from './data/match';
 import { RepoBar, Worktrees } from './components/Chrome';
 import { WorkingTree } from './components/WorkingTree';
 import { source } from './data/source';
@@ -30,6 +32,9 @@ import {
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/app.css';
+
+/** A lens over the commit list: one branch's history, or one file's. */
+type Filter = { kind: 'branch'; name: string } | { kind: 'file'; path: string } | null;
 
 export default function App() {
   const [path, setPath] = useState<string | null>(null);
@@ -50,13 +55,26 @@ export default function App() {
   const [newCount, setNewCount] = useState(0);
   const [away, setAway] = useState<Away | null>(null);
 
+  // --- Search --------------------------------------------------------------
+  const [spotlight, setSpotlight] = useState(false);
+  const [branches, setBranches] = useState<string[]>([]);
+  const [fileIndex, setFileIndex] = useState<FileEntry[]>([]);
+  /**
+   * A branch or file narrowing the commit list. Held here rather than inside
+   * Spotlight because it outlives the search: you pick a file, the palette
+   * closes, and the list stays filtered until you clear it.
+   */
+  const [filter, setFilter] = useState<Filter>(null);
+
   // Refs so the blur handler reads current values without re-subscribing.
   const pathRef = useRef<string | null>(null);
   const commitsRef = useRef<CommitNode[]>([]);
   const statusRef = useRef<WorkingStatus | null>(null);
+  const filterRef = useRef<Filter>(null);
   pathRef.current = path;
   commitsRef.current = commits;
   statusRef.current = status;
+  filterRef.current = filter;
 
   // --- Open a repository --------------------------------------------------
   const openRepo = useCallback(
@@ -66,6 +84,7 @@ export default function App() {
       setSelected(null);
       setPatch(null);
       setAway(null);
+      setFilter(null);
 
       try {
         const [summary, log, st, wt] = await Promise.all([
@@ -74,6 +93,19 @@ export default function App() {
           source.status(target),
           source.worktrees(target),
         ]);
+
+        // Search inputs, fetched once per repo. The file list is the expensive
+        // one — `allFiles` walks history — so it is deliberately not awaited
+        // with the rest: the repo renders immediately and Spotlight fills in a
+        // moment later, rather than the whole app waiting on it.
+        void source
+          .branches(target)
+          .then(setBranches)
+          .catch(() => setBranches([]));
+        void source
+          .files(target)
+          .then((f) => setFileIndex(indexFiles(f)))
+          .catch(() => setFileIndex([]));
 
         // Fixtures mode seeds a mark so the boundary can be reviewed at all;
         // live mode reads the real one and never fabricates it, because an
@@ -113,7 +145,11 @@ export default function App() {
         if (pathRef.current === null) return;
         switch (event.kind) {
           case 'graph_changed':
-            setCommits(event.commits);
+            // A filter is a deliberate lens over history; replacing it with the
+            // full graph because an agent committed would yank the user out of
+            // what they were reading. The chip says the list is filtered, so a
+            // list that does not move is the honest behaviour.
+            if (filterRef.current === null) setCommits(event.commits);
             break;
           case 'status_changed':
             setStatus(event.status);
@@ -188,6 +224,47 @@ export default function App() {
     [path, write],
   );
 
+  // --- Applying a Spotlight result -----------------------------------------
+  // Everything resolves into the commit list or the diff; nothing opens a
+  // surface that does not already exist.
+  const applyFilter = useCallback(
+    async (next: Filter) => {
+      if (!path) return;
+      setFilter(next);
+      setSelected(null);
+      setPatch(null);
+      setNewCount(0); // the boundary counts the full graph, not a lens over it
+      setLoading(true);
+      try {
+        const log =
+          next === null
+            ? await source.commits(path, 200)
+            : next.kind === 'branch'
+              ? await source.commits(path, 200, next.name)
+              : await source.fileHistory(path, next.path);
+        setCommits(log);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [path],
+  );
+
+  const onPick = useCallback(
+    (pick: Pick) => {
+      if (pick.kind === 'commit') {
+        selectCommitRef.current(pick.oid);
+        return;
+      }
+      void applyFilter(
+        pick.kind === 'branch' ? { kind: 'branch', name: pick.name } : { kind: 'file', path: pick.path },
+      );
+    },
+    [applyFilter],
+  );
+
   // --- Keyboard ------------------------------------------------------------
   // Grove lives beside an editor, so it should be drivable without reaching for
   // the mouse. Selection-based rather than DOM-focus-based: that is how git
@@ -202,8 +279,26 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       // Never steal keys from the commit message or the clone field.
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const typing =
+        t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+
+      // Ctrl/Cmd+K works even while typing — it is the universal "search"
+      // gesture and there is nothing else it could mean.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSpotlight(true);
+        return;
+      }
+
+      if (typing) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // `/` is the vim-ish search gesture, and matches the placeholder's promise.
+      if (e.key === '/') {
+        e.preventDefault();
+        setSpotlight(true);
+        return;
+      }
 
       const log = commitsRef.current;
       if (log.length === 0) return;
@@ -319,6 +414,18 @@ export default function App() {
         </button>
       )}
 
+      {/* A filter is a lens the user chose, so it stays visible and stays
+          clearable. Without this the list would silently be a subset. */}
+      {filter && (
+        <button className="filter" onClick={() => void applyFilter(null)}>
+          <span className="label">{filter.kind}</span>
+          <span className="filter-text">
+            {filter.kind === 'branch' ? filter.name : filter.path}
+          </span>
+          <span className="label">clear</span>
+        </button>
+      )}
+
       {error && (
         <div className="empty" role="alert">
           {error}
@@ -360,6 +467,16 @@ export default function App() {
 
       {/* Narrow posture: the diff takes the whole surface. Hidden by CSS at
           >= 700px, where the pane above is showing the same thing. */}
+      {spotlight && (
+        <Spotlight
+          repoPath={path}
+          branches={branches}
+          fileIndex={fileIndex}
+          onPick={onPick}
+          onClose={() => setSpotlight(false)}
+        />
+      )}
+
       {selected && (
         <div className="overlay">
           <Diff patch={patch} title={title} onClose={() => setSelected(null)} />
