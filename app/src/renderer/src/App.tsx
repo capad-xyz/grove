@@ -188,6 +188,68 @@ export default function App() {
     [path, write],
   );
 
+  // --- Keyboard ------------------------------------------------------------
+  // Grove lives beside an editor, so it should be drivable without reaching for
+  // the mouse. Selection-based rather than DOM-focus-based: that is how git
+  // clients behave, and it keeps the diff in step with the highlighted row.
+  const selectedRef = useRef<string | null>(null);
+  selectedRef.current = selected;
+  // Held in a ref so the key handler subscribes once instead of re-binding
+  // every time the open repo changes.
+  const selectCommitRef = useRef<(oid: string) => void>(() => {});
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Never steal keys from the commit message or the clone field.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const log = commitsRef.current;
+      if (log.length === 0) return;
+      const at = log.findIndex((c) => c.id === selectedRef.current);
+
+      const go = (index: number) => {
+        e.preventDefault();
+        const next = log[Math.max(0, Math.min(log.length - 1, index))];
+        if (next) selectCommitRef.current(next.id);
+      };
+
+      switch (e.key) {
+        case 'j':
+        case 'ArrowDown':
+          return go(at === -1 ? 0 : at + 1);
+        case 'k':
+        case 'ArrowUp':
+          return go(at === -1 ? 0 : at - 1);
+        case 'Home':
+          return go(0);
+        case 'End':
+          return go(log.length - 1);
+        case 'Enter':
+          if (at === -1) return go(0);
+          return;
+        case 'Escape':
+          e.preventDefault();
+          setSelected(null);
+          return;
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Keep the highlighted row on screen. `nearest` so it only scrolls when the
+  // row is actually out of view — recentring on every keypress makes a list
+  // feel like it is fighting you.
+  useEffect(() => {
+    if (!selected) return;
+    document
+      .querySelector('.commit[data-selected="true"]')
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [selected]);
+
   // --- Diff for the selected commit ---------------------------------------
   const selectCommit = useCallback(
     (oid: string) => {
@@ -201,6 +263,7 @@ export default function App() {
     },
     [path],
   );
+  selectCommitRef.current = selectCommit;
 
   const title = useMemo(() => {
     const c = commits.find((x) => x.id === selected);

@@ -99,18 +99,18 @@ this ramp sits beside any editor without arguing with it.
 
 | Token | Value | Use |
 |---|---|---|
-| `--bg` | `#0e0e0f` | Window background. Darker than most editors on purpose, so Grove reads as *behind* the editor, not competing with it. |
-| `--surface` | `#141415` | Panels, the commit list, anything sitting on `--bg`. |
-| `--surface-raised` | `#1a1a1c` | Hovered rows, inputs, the one step above a panel. |
-| `--surface-sunken` | `#0a0a0b` | Diff background — recedes so the diff's own colour carries. |
+| `--bg` | `#0b0b0d` | Window background — capad.fyi's `--ink` exactly. Darker than most editors on purpose, so Grove reads as *behind* the editor, not competing with it. |
+| `--surface` | `#171718` | Panels, the commit list, anything sitting on `--bg`. |
+| `--surface-raised` | `#1d1d1e` | Hovered rows, inputs, the one step above a panel. |
+| `--surface-sunken` | `#08080a` | Diff background — recedes so the diff's own colour carries. |
 
 ### Lines
 
 | Token | Value | Use |
 |---|---|---|
-| `--line` | `#242426` | Panel edges, section rules. Visible but never structural-looking. |
-| `--line-soft` | `#1a1a1c` | Row separators. Should read as rhythm, not as a table. |
-| `--line-strong` | `#3a3a3d` | The 2px left rule marking a selected row. |
+| `--line` | `#292929` | Panel edges, section rules. Visible but never structural-looking. |
+| `--line-soft` | `#1d1d1e` | Row separators. Should read as rhythm, not as a table. |
+| `--line-strong` | `#3c3b36` | The 2px left rule marking a selected row, and the commit-graph lanes. |
 
 ### Text
 
@@ -118,10 +118,10 @@ Four steps, no more. A fifth step always turns out to mean "I hadn't decided."
 
 | Token | Value | Use |
 |---|---|---|
-| `--text` | `#e8e8e6` | Commit subjects, file names, diff code. Not pure white — pure white on near-black vibrates at small sizes. |
-| `--text-dim` | `#9a9a97` | Metadata that is read second: author, relative time, branch. |
-| `--text-faint` | `#6a6a68` | Structural labels, SHAs, line numbers. Present, not competing. |
-| `--text-ghost` | `#4a4a48` | Disabled, placeholder, empty-state. |
+| `--text` | `#f1f0ec` | Commit subjects, file names, diff code — capad.fyi's `--paper` exactly. Not pure white; pure white on near-black vibrates at small sizes. |
+| `--text-dim` | `#a8a7a2` | Metadata that is read second: author, relative time, branch. |
+| `--text-faint` | `#7a7975` | Structural labels, SHAs, line numbers. Present, not competing. See §3 on why this is lifted off `--muted`. |
+| `--text-ghost` | `#4a4945` | Disabled, placeholder, empty-state. Never content — it does not clear AA. |
 
 ### Diff — the only saturated colours
 
@@ -247,7 +247,32 @@ Respect `prefers-reduced-motion`: drop the flash to an instant state change.
 
 ---
 
-## 8. Layout
+## 8. Keyboard
+
+Grove sits beside an editor, so it should be drivable without reaching for the
+mouse. Navigation is **selection-based, not focus-based**: the keys move a
+highlighted row and the diff follows it, which is how git clients behave and
+what keeps the two panes in step.
+
+| Key | Action |
+|---|---|
+| `j` / `↓` | Next commit |
+| `k` / `↑` | Previous commit |
+| `Home` / `End` | First / last commit |
+| `Enter` | Select the first commit if none is selected |
+| `Esc` | Clear the selection, closing the narrow-mode overlay |
+
+Two rules that are easy to get wrong:
+
+- **Text fields win.** If the event target is an input, textarea, or
+  contenteditable, the handler returns immediately — `j` in a commit message is
+  a letter, not a navigation key. Modified chords (ctrl/cmd/alt) are left alone
+  too, so the platform keeps its own shortcuts.
+- **Scroll with `block: 'nearest'`.** Only scroll when the row is actually off
+  screen. Recentring on every keypress makes a list feel like it is fighting
+  you.
+
+## 9. Layout
 
 Both postures are real, so the layout adapts on one breakpoint at **700px**.
 
@@ -263,7 +288,7 @@ inside an Electron window at any size without depending on the display.
 
 ---
 
-## 9. What is deliberately absent
+## 10. What is deliberately absent
 
 Listed so nobody re-adds them thinking they were forgotten:
 
