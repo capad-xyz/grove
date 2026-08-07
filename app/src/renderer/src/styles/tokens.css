@@ -9,22 +9,32 @@
   color-scheme: dark;
 
   /* --- Surfaces. Darker than most editors so Grove reads as *behind* the
-     editor rather than competing with it. --- */
-  --bg: #0e0e0f;
-  --surface: #141415;
-  --surface-raised: #1a1a1c;
-  --surface-sunken: #0a0a0b;
+     editor rather than competing with it.
+     --bg IS capad.fyi's --ink, exactly. The dark steps interpolate from it
+     toward the portfolio's --muted, which reproduces that palette's signature:
+     the deepest black is very slightly cool, everything above it warms. --- */
+  --bg: #0b0b0d;
+  --surface: #171718;
+  --surface-raised: #1d1d1e;
+  --surface-sunken: #08080a;
 
   /* --- Lines. Rhythm, not table borders. --- */
-  --line: #242426;
-  --line-soft: #1a1a1c;
-  --line-strong: #3a3a3d;
+  --line: #292929;
+  --line-soft: #1d1d1e;
+  --line-strong: #3c3b36;
 
-  /* --- Text. Four steps. A fifth always means "I hadn't decided". --- */
-  --text: #e8e8e6;
-  --text-dim: #9a9a97;
-  --text-faint: #6a6a68;
-  --text-ghost: #4a4a48;
+  /* --- Text. Four steps. A fifth always means "I hadn't decided".
+     --text is capad.fyi's --paper and --text-faint is its --muted, both exact;
+     the two between are interpolated. --- */
+  --text: #f1f0ec;
+  --text-dim: #a8a7a2;
+  /* capad.fyi's --muted is #6f6e6a. Lifted here because that grey clears AA on
+     paper but only reaches 3.85:1 inverted onto ink — and it carries SHAs and
+     labels at 9.5-10.5px, which need more contrast than body text, not less.
+     Same hue, ~4% more luminance, now 4.55:1. */
+  --text-faint: #7a7975;
+  /* Disabled and empty states only, which WCAG exempts. Never for content. */
+  --text-ghost: #4a4945;
 
   /* --- Diff: THE ONLY SATURATED COLOURS IN THE APP. ---
      Backgrounds are weak on purpose; the foreground already says which side a
@@ -36,11 +46,12 @@
 
   /* --- The one exception: "since you last looked".
      Used for nothing else — not buttons, not links, not focus.
-     Currently neutral, which is a legitimate resting state for this direction
-     rather than a placeholder. Swap these two values to introduce a hue; it
-     must not sit next to diff green or diff red on the wheel. --- */
-  --accent: #cfcfcb;
-  --accent-soft: rgba(207, 207, 203, 0.12);
+     Achromatic on purpose and now on evidence: capad.fyi has no accent colour
+     at all, only paper/ink/muted. So the marker signals by being the single
+     brightest thing on screen — every other label sits at --text-faint — which
+     also means it cannot possibly be misread as a diff signal. --- */
+  --accent: #f1f0ec;
+  --accent-soft: rgba(241, 240, 236, 0.1);
 
   /* --- Type. Mono everywhere: Grove is an extension of the editor surface. --- */
   --font: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;

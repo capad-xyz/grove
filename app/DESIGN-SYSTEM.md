@@ -54,9 +54,46 @@ Every other design rule in this document exists to make this one affordable.
 
 ## 3. Colour
 
-Greyscale is warm-shifted (a touch of red/yellow in the neutrals) rather than
-pure. Pure grey next to a warm editor theme reads as blue and looks cold; warm
-neutrals sit beside any editor without arguing with it.
+### Where the palette comes from
+
+Grove's neutrals are **capad.fyi's palette, inverted**. The portfolio has three
+colours and no accent:
+
+```
+--paper: #f1f0ec      --ink: #0b0b0d      --muted: #6f6e6a
+```
+
+Grove takes those same three values and turns them dark-side up:
+
+| capad.fyi | → | Grove | |
+|---|---|---|---|
+| `--ink` `#0b0b0d` | → | `--bg` | exact |
+| `--paper` `#f1f0ec` | → | `--text` | exact |
+| `--muted` `#6f6e6a` | → | `--text-faint` | lifted to `#7a7975` |
+
+`--ink` and `--paper` are used unmodified; the steps between them are
+interpolated. `--muted` needed a small lift: **contrast does not survive
+inversion.** That grey clears AA sitting on paper, but on ink it reaches only
+3.85:1 — and in Grove it carries SHAs and section labels at 9.5–10.5px, which
+need *more* contrast than body text, not less. Same hue, ~4% more luminance,
+4.51:1 — which clears AA with very little margin, so treat it as a floor and do
+not darken it. If you ever re-sync these palettes, re-check the ratio rather
+than copying the value across.
+
+Measured against `--bg`: `--text` 17.24:1, `--text-dim` 8.16:1, `--text-faint`
+4.51:1, `--add` 8.66:1, `--del` 5.86:1. Every colour that carries content
+clears AA. `--text-ghost` does not and must not carry content — it is for
+disabled and empty states, which WCAG exempts.
+
+This is a real identity tie rather than a borrowed swatch — the
+two products share a palette because they share an argument, which is that the
+content is the only thing allowed to be loud.
+
+It also reproduces the portfolio's specific signature: `--ink` is very slightly
+*cool* (11, 11, **13**) while every lighter value is *warm* (`--muted` is
+111, 110, **106**). So Grove's deepest black is faintly cool and everything
+above it warms. Pure grey beside a warm editor theme reads blue and looks cold;
+this ramp sits beside any editor without arguing with it.
 
 ### Surfaces
 
@@ -139,22 +176,28 @@ Grove's actual superpower is *everything that changed while you were away*. That
 is the single most important thing on screen when the window regains focus, and
 it is the one place greyscale genuinely cannot carry the meaning.
 
-So exactly one accent hue exists, and it is used **only** to mark new-since-last-look —
-never for buttons, links, focus rings, or branding.
+So exactly one accent exists, and it is used **only** to mark
+new-since-last-look — never for buttons, links, focus rings, or branding.
+
+**It is achromatic**, and that is a decision on evidence rather than a
+placeholder: capad.fyi has no accent colour at all. Carrying a hue into Grove
+purely to have one would have invented brand language the brand does not use.
 
 ```
---accent:      <awaiting the value from capad.fyi>
---accent-soft: same hue at ~12% alpha
+--accent:      #f1f0ec   /* = --paper. The brightest value in the app. */
+--accent-soft: rgba(241, 240, 236, .10)
 ```
 
-**Constraint on whatever value is chosen:** it must not sit adjacent to diff
-green or diff red on the hue wheel, or it will misread as a diff signal at a
-glance. That rules out oranges/clays (too close to `--del`) and mid-greens (too
-close to `--add`). Violets, blues, and cyans are all safe.
+The marker signals by being **the single brightest thing on screen** — every
+other label sits at `--text-faint`, so the boundary reads as emphatic without
+spending a hue. This has a second benefit the coloured options did not: with no
+hue at all, it is structurally impossible for the marker to be misread as a diff
+signal.
 
-Until that value is supplied, `--accent` is set to a neutral bright grey, which
-is a legitimate resting state for this direction rather than a placeholder — the
-system is designed to work with no hue at all.
+**If a hue is ever introduced here**, the constraint stands: it must not sit
+adjacent to diff green or diff red on the wheel, which rules out oranges and
+clays (too close to `--del`) and mid-greens (too close to `--add`). Violets,
+blues, and cyans are safe.
 
 ---
 
