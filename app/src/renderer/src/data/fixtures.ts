@@ -50,7 +50,7 @@ const COMMIT_ROWS: [string, string, number, string[], string[]][] = [
   ['e8c4a20', 'Graph: lane assignment in a single pass', 74, [], []],
 ];
 
-export const FIXTURE_COMMITS: CommitNode[] = COMMIT_ROWS.map(
+const NAMED: CommitNode[] = COMMIT_ROWS.map(
   ([short, summary, hoursAgo, refs, parents]) => ({
     id: oid(short),
     short,
@@ -61,6 +61,35 @@ export const FIXTURE_COMMITS: CommitNode[] = COMMIT_ROWS.map(
     summary,
   }),
 );
+
+/**
+ * Linear filler below the interesting commits, so the harness exercises a list
+ * longer than the viewport plus overscan. Without it every row stays mounted
+ * and the virtualisation is never actually exercised in the browser.
+ */
+const FILLER: CommitNode[] = Array.from({ length: 48 }, (_, i) => {
+  const short = (0xe8c4a20 - (i + 1) * 0x1d).toString(16).padStart(7, '0');
+  const next = (0xe8c4a20 - (i + 2) * 0x1d).toString(16).padStart(7, '0');
+  return {
+    id: oid(short),
+    short,
+    parents: [oid(next)],
+    author: i % 4 === 0 ? 'capad.fyi' : 'agent',
+    time: now - (80 + i * 6) * HOUR,
+    refs: [],
+    summary: `Earlier work ${48 - i}: incremental change to the engine`,
+  };
+});
+
+// The last filler commit is the root, so the graph terminates rather than
+// pointing at a parent that does not exist.
+FILLER[FILLER.length - 1] = { ...FILLER[FILLER.length - 1]!, parents: [] };
+
+export const FIXTURE_COMMITS: CommitNode[] = [
+  ...NAMED.slice(0, -1),
+  { ...NAMED[NAMED.length - 1]!, parents: [FILLER[0]!.id] },
+  ...FILLER,
+];
 
 export const FIXTURE_STATUS: WorkingStatus = {
   branch: 'reauthor',

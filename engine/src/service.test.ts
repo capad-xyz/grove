@@ -29,8 +29,15 @@ async function waitFor(pred: () => boolean, what: string, timeoutMs = 15000): Pr
   }
 }
 
-/** Wait until no event has arrived for `ms`, so assertions see a settled state. */
-async function quiesce(ms = 400): Promise<void> {
+/**
+ * Wait until no event has arrived for `ms`, so assertions see a settled state.
+ *
+ * The window must exceed the coordinator's cooldown (up to 1s after a cycle),
+ * or this returns "quiet" while a cycle is merely resting and its events land
+ * in the middle of the next test — which is exactly what happened when the
+ * cooldown was introduced.
+ */
+async function quiesce(ms = 1300): Promise<void> {
   let seen = -1;
   while (seen !== events.length) {
     seen = events.length;

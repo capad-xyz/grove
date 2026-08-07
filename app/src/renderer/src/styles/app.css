@@ -422,13 +422,33 @@
   flex: none;
 }
 
+/* --- Virtualised commit list ----------------------------------------------
+   Only the rows on screen are mounted. The spacer carries the full height so
+   the scrollbar reflects the whole history, and each row is absolutely placed
+   at index * --row. Every item is exactly one row tall — including the
+   boundary — which is what lets position be arithmetic instead of measurement. */
+
+.commit-scroll {
+  flex: 1;
+  min-height: 0;
+}
+.commit-spacer {
+  position: relative;
+}
+.commit-slot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--row);
+}
+
 /* The "since you last looked" boundary. This is the one place a hue is
    permitted outside a diff (DESIGN-SYSTEM.md §5). */
 .since {
   display: flex;
   align-items: center;
   gap: var(--gap);
-  padding: var(--gap) var(--pad) 4px;
+  padding: 0 var(--pad);
   font-size: var(--fs-label);
   letter-spacing: 0.07em;
   text-transform: uppercase;

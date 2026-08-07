@@ -358,15 +358,9 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Keep the highlighted row on screen. `nearest` so it only scrolls when the
-  // row is actually out of view — recentring on every keypress makes a list
-  // feel like it is fighting you.
-  useEffect(() => {
-    if (!selected) return;
-    document
-      .querySelector('.commit[data-selected="true"]')
-      ?.scrollIntoView({ block: 'nearest' });
-  }, [selected]);
+  // Keeping the highlighted row on screen moved into Commits: the list is
+  // virtualised, so the selected row may not be mounted and there is nothing
+  // for `scrollIntoView` to find.
 
   // --- Diff for the selected commit ---------------------------------------
   const selectCommit = useCallback(
@@ -481,14 +475,14 @@ export default function App() {
             <span className="label">commits</span>
             <span className="rule" />
           </div>
-          <div className="scroll">
-            <Commits
-              commits={commits}
-              newCount={newCount}
-              selected={selected}
-              onSelect={selectCommit}
-            />
-          </div>
+          {/* Commits owns its own scroll container — the windowing needs
+              scrollTop, and the rows are absolutely positioned inside it. */}
+          <Commits
+            commits={commits}
+            newCount={newCount}
+            selected={selected}
+            onSelect={selectCommit}
+          />
         </div>
 
         <div className="pane-diff">
