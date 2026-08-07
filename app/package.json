@@ -1,0 +1,29 @@
+{
+  "name": "@grove/app",
+  "version": "0.1.0",
+  "description": "Grove's Electron shell: window lifecycle, the hardened IPC bridge, and the renderer.",
+  "private": true,
+  "author": "capad <oss@capad.fyi>",
+  "license": "GPL-3.0-or-later",
+  "repository": "https://github.com/capad-xyz/grove",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "predev": "npm --prefix ../engine run build",
+    "dev": "electron-vite dev",
+    "prebuild": "npm --prefix ../engine run build",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "smoke": "electron-vite build && electron . --smoke",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "@grove/engine": "file:../engine"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "electron": "^43.3.0",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}
