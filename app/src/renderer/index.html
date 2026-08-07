@@ -3,94 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Grove — bridge harness</title>
-    <style>
-      /* Deliberately plain. This is a wiring harness for phase 3, not a design.
-         The real interface is authored in phase 4, design-first, and none of
-         these choices should survive into it. */
-      :root {
-        color-scheme: dark;
-        --bg: #111;
-        --panel: #191919;
-        --line: #2b2b2b;
-        --fg: #e6e6e6;
-        --dim: #8a8a8a;
-        --ok: #6bbf6b;
-        --err: #e07a7a;
-      }
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        padding: 16px;
-        background: var(--bg);
-        color: var(--fg);
-        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      }
-      h1 { font-size: 13px; font-weight: 600; margin: 0 0 12px; }
-      h1 span { color: var(--dim); font-weight: 400; }
-      .row { display: flex; gap: 8px; margin-bottom: 12px; }
-      input {
-        flex: 1; padding: 6px 8px; background: var(--panel);
-        border: 1px solid var(--line); color: var(--fg); border-radius: 4px;
-        font: inherit;
-      }
-      button {
-        padding: 6px 12px; background: var(--panel); border: 1px solid var(--line);
-        color: var(--fg); border-radius: 4px; font: inherit; cursor: pointer;
-      }
-      button:hover:not(:disabled) { border-color: #444; }
-      button:disabled { opacity: 0.4; cursor: default; }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-      section {
-        background: var(--panel); border: 1px solid var(--line);
-        border-radius: 6px; padding: 10px 12px; min-height: 120px;
-      }
-      section h2 {
-        font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
-        color: var(--dim); margin: 0 0 8px; font-weight: 600;
-      }
-      dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
-      dt { color: var(--dim); }
-      dd { margin: 0; overflow-wrap: anywhere; }
-      pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; }
-      .log div { border-bottom: 1px solid var(--line); padding: 3px 0; }
-      .log div:last-child { border-bottom: 0; }
-      .gen { color: var(--dim); }
-      .kind { color: var(--ok); }
-      .err { color: var(--err); }
-      #status { margin-bottom: 12px; color: var(--dim); }
-    </style>
+    <title>Grove</title>
   </head>
   <body>
-    <h1>Grove <span>— phase 3 bridge harness</span></h1>
-    <div id="status">checking bridge…</div>
-
-    <div class="row">
-      <input id="path" placeholder="path to a git repository" spellcheck="false" />
-      <button id="open">Open &amp; watch</button>
-      <button id="stageAll">Stage all</button>
-      <button id="unstageAll">Unstage all</button>
-    </div>
-
-    <div class="grid">
-      <section>
-        <h2>Repository</h2>
-        <dl id="repo"></dl>
-      </section>
-      <section>
-        <h2>Working status</h2>
-        <pre id="work"></pre>
-      </section>
-      <section>
-        <h2>Recent commits</h2>
-        <pre id="commits"></pre>
-      </section>
-      <section>
-        <h2>Live coordinator events</h2>
-        <div class="log" id="log"></div>
-      </section>
-    </div>
-
-    <script type="module" src="./src/main.ts"></script>
+    <div id="root"></div>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

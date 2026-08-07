@@ -1,0 +1,74 @@
+/**
+ * Grove design tokens — direction: Instrument.
+ *
+ * Every value here is specified in DESIGN-SYSTEM.md with its reason. If you
+ * change one, change the reason too. Do not add a token without a use.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* --- Surfaces. Darker than most editors so Grove reads as *behind* the
+     editor rather than competing with it. --- */
+  --bg: #0e0e0f;
+  --surface: #141415;
+  --surface-raised: #1a1a1c;
+  --surface-sunken: #0a0a0b;
+
+  /* --- Lines. Rhythm, not table borders. --- */
+  --line: #242426;
+  --line-soft: #1a1a1c;
+  --line-strong: #3a3a3d;
+
+  /* --- Text. Four steps. A fifth always means "I hadn't decided". --- */
+  --text: #e8e8e6;
+  --text-dim: #9a9a97;
+  --text-faint: #6a6a68;
+  --text-ghost: #4a4a48;
+
+  /* --- Diff: THE ONLY SATURATED COLOURS IN THE APP. ---
+     Backgrounds are weak on purpose; the foreground already says which side a
+     line is on, and strong fills make long diffs exhausting. */
+  --add: #5fbf7f;
+  --del: #e06666;
+  --add-bg: rgba(95, 191, 127, 0.1);
+  --del-bg: rgba(224, 102, 102, 0.1);
+
+  /* --- The one exception: "since you last looked".
+     Used for nothing else — not buttons, not links, not focus.
+     Currently neutral, which is a legitimate resting state for this direction
+     rather than a placeholder. Swap these two values to introduce a hue; it
+     must not sit next to diff green or diff red on the wheel. --- */
+  --accent: #cfcfcb;
+  --accent-soft: rgba(207, 207, 203, 0.12);
+
+  /* --- Type. Mono everywhere: Grove is an extension of the editor surface. --- */
+  --font: ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  --fs-code: 12px;
+  --fs-body: 11.5px;
+  --fs-meta: 10.5px;
+  --fs-label: 9.5px;
+  --lh-list: 1.25;
+  --lh-code: 1.5;
+
+  /* --- Density. --- */
+  --row: 24px;
+  --row-lg: 30px;
+  --pad: 9px;
+  --gap: 7px;
+  --radius: 3px;
+
+  /* --- Motion. Says "this changed under you" and nothing else.
+     Layout never moves; only brightness. --- */
+  --flash: 600ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* --- Layout. --- */
+  --pane-commits: 360px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --flash: 1ms;
+  }
+}

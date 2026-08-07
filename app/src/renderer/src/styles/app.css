@@ -1,0 +1,320 @@
+/**
+ * Component layer.
+ *
+ * Layout adapts at 700px of *container* width (DESIGN-SYSTEM.md §8), not
+ * viewport — so an Electron window at any size lays out correctly regardless of
+ * the display it happens to be on.
+ */
+
+.app {
+  container-type: inline-size;
+  container-name: app;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* --- Repo bar ------------------------------------------------------------ */
+
+.repobar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: var(--row-lg);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+.repobar .name {
+  color: var(--text);
+}
+.repobar .branch {
+  color: var(--text-dim);
+}
+.repobar .counts {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+.repobar .spacer {
+  flex: 1;
+}
+.repobar .mode {
+  font-size: var(--fs-label);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1px 5px;
+}
+.dirty-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+}
+
+/* --- Worktree strip ------------------------------------------------------ */
+
+.worktrees {
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  overflow-x: auto;
+  flex: none;
+}
+.wt {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 3px var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  white-space: nowrap;
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+  transition: background-color 120ms var(--ease);
+}
+.wt:hover {
+  background: var(--surface-raised);
+}
+.wt[data-current='true'] {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.wt .ab {
+  color: var(--text-faint);
+}
+
+/* --- Body: one column narrow, two panes wide ----------------------------- */
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.pane-commits {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.pane-diff {
+  display: none;
+}
+
+@container app (min-width: 700px) {
+  .pane-commits {
+    flex: none;
+    width: var(--pane-commits);
+    border-right: 1px solid var(--line);
+  }
+  .pane-diff {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+}
+
+/* --- Commit list --------------------------------------------------------- */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad) 4px;
+  flex: none;
+}
+.section-head .rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.commit .sha {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  flex: none;
+}
+.commit .msg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.commit[data-new='true'] .msg {
+  color: var(--text);
+}
+.commit[data-selected='true'] .msg {
+  color: var(--text);
+}
+.commit .when {
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+  flex: none;
+}
+.commit .ref {
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 4px;
+  flex: none;
+}
+
+/* The "since you last looked" boundary. This is the one place a hue is
+   permitted outside a diff (DESIGN-SYSTEM.md §5). */
+.since {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad) 4px;
+  font-size: var(--fs-label);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
+  flex: none;
+}
+.since .rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* --- Diff ---------------------------------------------------------------- */
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--surface-sunken);
+}
+.diff-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: var(--row-lg);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+.diff-head .title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-body {
+  font-size: var(--fs-code);
+  line-height: var(--lh-code);
+  padding: 6px 0;
+}
+.diff-line {
+  display: flex;
+  padding: 0 var(--pad);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.diff-line.add {
+  color: var(--add);
+  background: var(--add-bg);
+}
+.diff-line.del {
+  color: var(--del);
+  background: var(--del-bg);
+}
+.diff-line.ctx {
+  color: var(--text-faint);
+}
+.diff-line.hunk {
+  color: var(--text-ghost);
+  background: var(--surface);
+  margin: 6px 0 2px;
+}
+.diff-line.file {
+  color: var(--text-dim);
+  background: var(--surface);
+  margin: 6px 0 0;
+}
+
+/* --- Narrow-mode overlay ------------------------------------------------- */
+
+.app {
+  position: relative;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-sunken);
+}
+
+/* Wide: the diff lives in its own pane, so the overlay must not also render.
+   This block has to come *after* the rule above — same specificity, so source
+   order decides, and declaring it earlier let the overlay cover the whole app
+   at full width. */
+@container app (min-width: 700px) {
+  .overlay {
+    display: none;
+  }
+}
+
+/* --- Status -------------------------------------------------------------- */
+
+.status {
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+  max-height: 34%;
+  display: flex;
+  flex-direction: column;
+}
+.status .file {
+  font-size: var(--fs-meta);
+}
+.status .code {
+  width: 12px;
+  flex: none;
+  color: var(--text-faint);
+}
+.status .code[data-code='A'],
+.status .code[data-code='?'] {
+  color: var(--add);
+}
+.status .code[data-code='D'] {
+  color: var(--del);
+}
+.status .path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+  color: var(--text-dim);
+}
+
+.empty {
+  padding: var(--pad);
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+}

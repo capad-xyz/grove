@@ -1,0 +1,131 @@
+/**
+ * Base layer. Resets, the shared primitives every component leans on, and the
+ * state rules from DESIGN-SYSTEM.md §5 (state is brightness + rule, never hue).
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px var(--gap);
+}
+input::placeholder {
+  color: var(--text-ghost);
+}
+input:focus {
+  outline: none;
+  border-color: var(--line-strong);
+}
+
+/* --- Section labels. Uppercase, faint, structural. --- */
+.label {
+  font-size: var(--fs-label);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* --- Rows. The core primitive: hover and selection are brightness + a 2px
+   left rule, never a hue. The transparent border reserves the rule's space so
+   selecting a row cannot shift its contents sideways (§7: layout never moves). --- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: var(--row);
+  padding: 0 var(--pad);
+  border-left: 2px solid transparent;
+  cursor: default;
+  transition:
+    background-color 120ms var(--ease),
+    color 120ms var(--ease);
+}
+.row:hover {
+  background: var(--surface-raised);
+}
+.row[data-selected='true'] {
+  background: var(--surface-raised);
+  border-left-color: var(--line-strong);
+}
+.row:focus-visible {
+  outline: none;
+  border-left-color: var(--line-strong);
+  color: var(--text);
+}
+
+/* --- "Changed under you": brightness flash that decays. No movement. --- */
+@keyframes grove-flash {
+  from {
+    background-color: var(--accent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.flash {
+  animation: grove-flash var(--flash) var(--ease);
+}
+
+/* --- Scrollbars: present but recessive. A bright scrollbar in a docked strip
+   is a surprising amount of visual noise. --- */
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 9px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--line-strong);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

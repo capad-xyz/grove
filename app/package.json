@@ -10,7 +10,7 @@
   "scripts": {
     "predev": "npm --prefix ../engine run build",
     "dev": "electron-vite dev",
-    "dev:renderer": "vite src/renderer --host 127.0.0.1 --port 5180 --strictPort",
+    "dev:renderer": "vite --config vite.renderer.config.ts",
     "prebuild": "npm --prefix ../engine run build",
     "build": "electron-vite build",
     "start": "electron-vite preview",
@@ -18,10 +18,15 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
   },
   "dependencies": {
-    "@grove/engine": "file:../engine"
+    "@grove/engine": "file:../engine",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
     "electron": "^43.3.0",
     "electron-vite": "^5.0.0",
     "typescript": "^7.0.2",

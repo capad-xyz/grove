@@ -40,9 +40,13 @@ let mainWindow: BrowserWindow | null = null;
  */
 function csp(): string {
   const connect = isDev ? `'self' ${DEV_URL} ws: http://localhost:*` : `'self'`;
+  // React Refresh injects an inline preamble in dev, which `'self'` alone
+  // blocks. Production stays strict — this relaxation must never leak there,
+  // which is why it keys off ELECTRON_RENDERER_URL rather than NODE_ENV.
+  const script = isDev ? `'self' 'unsafe-inline'` : `'self'`;
   return [
     `default-src 'self'`,
-    `script-src 'self'`,
+    `script-src ${script}`,
     `style-src 'self' 'unsafe-inline'`,
     `img-src 'self' data:`,
     `font-src 'self' data:`,
