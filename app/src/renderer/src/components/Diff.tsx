@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { findMatches, segments, step } from '../data/find';
+import { base64Size, dataUri, imageFiles, mimeFor } from '../data/images';
+import { source } from '../data/source';
 
 interface Line {
   kind: 'add' | 'del' | 'ctx' | 'hunk' | 'file';
@@ -39,14 +41,85 @@ export function parseDiff(patch: string): Line[] {
   return out;
 }
 
+/**
+ * Before and after for one changed image.
+ *
+ * Rendered through `<img src="data:…">` and never as inline markup. That is
+ * deliberate for SVG: an SVG can carry script, and inlining one from a
+ * repository Grove did not write would hand it the renderer. Inside an `<img>`
+ * it is inert, and the CSP already permits `data:` there.
+ */
+function ImagePair({
+  repoPath,
+  oid,
+  file,
+}: {
+  repoPath: string;
+  oid: string;
+  file: string;
+}) {
+  const [before, setBefore] = useState<string | null>(null);
+  const [after, setAfter] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDone(false);
+    // `^` resolves to the first parent; a missing blob on either side is a
+    // normal add or delete and comes back null rather than throwing.
+    void Promise.all([
+      source.fileBytesAt(repoPath, `${oid}^`, file).catch(() => null),
+      source.fileBytesAt(repoPath, oid, file).catch(() => null),
+    ]).then(([b, a]) => {
+      if (cancelled) return;
+      setBefore(b);
+      setAfter(a);
+      setDone(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath, oid, file]);
+
+  const mime = mimeFor(file) ?? 'image/png';
+  const side = (label: string, b64: string | null) => (
+    <div className="img-side">
+      <div className="label">
+        {label}
+        {b64 && <span className="img-size"> {base64Size(b64)}</span>}
+      </div>
+      {b64 ? (
+        <img src={dataUri(mime, b64)} alt={`${file} ${label}`} />
+      ) : (
+        <div className="empty">{done ? 'absent' : '…'}</div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="img-diff">
+      <div className="img-file">{file}</div>
+      <div className="img-pair">
+        {side('before', before)}
+        {side('after', after)}
+      </div>
+    </div>
+  );
+}
+
 export function Diff({
   patch,
   title,
   onClose,
+  repoPath,
+  oid,
 }: {
   patch: string | null;
   title: string;
   onClose?: () => void;
+  /** Both required to render image previews; without them the diff is text only. */
+  repoPath?: string | null;
+  oid?: string | null;
 }) {
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState('');
@@ -58,6 +131,7 @@ export function Diff({
   const lines = useMemo(() => (patch ? parseDiff(patch) : []), [patch]);
   const texts = useMemo(() => lines.map((l) => l.text), [lines]);
   const matches = useMemo(() => findMatches(texts, query), [texts, query]);
+  const images = useMemo(() => (patch ? imageFiles(patch) : []), [patch]);
 
   // A new diff invalidates the old match positions entirely.
   useEffect(() => setAt(0), [patch, query]);
@@ -175,6 +249,14 @@ export function Diff({
         <div className="empty">No textual changes.</div>
       ) : (
         <div className="diff-body" ref={bodyRef}>
+          {/* Images first: a "Binary files differ" line is the least useful
+              thing in the patch, and the picture is the whole answer. */}
+          {repoPath &&
+            oid &&
+            images.map((file) => (
+              <ImagePair key={file} repoPath={repoPath} oid={oid} file={file} />
+            ))}
+
           {/* The inner wrapper shrink-wraps to the widest line, so rows fill
               the full scrolled width. Sizing the rows themselves against 100%
               measures the *pane*, which leaves +/- backgrounds ending mid-air

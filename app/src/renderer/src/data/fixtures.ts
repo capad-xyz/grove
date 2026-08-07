@@ -110,6 +110,14 @@ export const FIXTURE_WORKTREES: Worktree[] = [
 
 export const FIXTURE_BRANCHES = ['reauthor', 'main', 'agent/blame-gutter'];
 
+/**
+ * A 2x2 PNG. Small enough to inline, real enough that the browser decodes it —
+ * which is the only thing the image-diff harness needs to prove.
+ */
+export const FIXTURE_PNG =
+  'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAHElEQVR42mNk' +
+  'YPhfz0AEYBxVSF+Fgwrpr5AAA4MDAY7wUOAAAAAASUVORK5CYII=';
+
 /** Enough real paths to exercise ranking: shared basenames, deep nesting. */
 export const FIXTURE_FILES = [
   'app/DESIGN-SYSTEM.md',
@@ -189,4 +197,7 @@ export const FIXTURE_DIFF = `diff --git a/engine/src/read.ts b/engine/src/read.t
  /**
   * Walk the commit graph across all refs, newest first, capped at \`limit\`.
   */
+diff --git a/app/packaging/icon.png b/app/packaging/icon.png
+index 1a2b3c4..5d6e7f8 100644
+Binary files a/app/packaging/icon.png and b/app/packaging/icon.png differ
 `;

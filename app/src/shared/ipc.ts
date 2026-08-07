@@ -28,6 +28,7 @@ export const CHANNELS = {
   commitDetail: 'grove:commit-detail',
   commitDiff: 'grove:commit-diff',
   fileDiff: 'grove:file-diff',
+  fileBytesAt: 'grove:file-bytes-at',
   fileDiffBetween: 'grove:file-diff-between',
   fileAt: 'grove:file-at',
   fileHistory: 'grove:file-history',
@@ -87,6 +88,8 @@ export interface GroveApi {
   /** Whole-commit diff in one git invocation — see engine `commitDiff`. */
   commitDiff(path: string, oid: string): Promise<string>;
   fileDiff(path: string, oid: string, file: string): Promise<string>;
+  /** Base64 bytes of a file at a revision, or null if absent there. */
+  fileBytesAt(path: string, rev: string, file: string): Promise<string | null>;
   fileDiffBetween(path: string, a: string, b: string, file: string): Promise<string>;
   fileAt(path: string, rev: string, file: string): Promise<string>;
   fileHistory(path: string, file: string): Promise<CommitNode[]>;

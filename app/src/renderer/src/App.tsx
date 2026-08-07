@@ -467,7 +467,12 @@ export default function App() {
         </div>
 
         <div className="pane-diff">
-          <Diff patch={selected ? patch : null} title={selected ? title : 'diff'} />
+          <Diff
+            patch={selected ? patch : null}
+            title={selected ? title : 'diff'}
+            repoPath={path}
+            oid={selected}
+          />
         </div>
       </div>
 
@@ -483,8 +488,6 @@ export default function App() {
         onDraft={() => write(() => source.draftMessage(path))}
       />
 
-      {/* Narrow posture: the diff takes the whole surface. Hidden by CSS at
-          >= 700px, where the pane above is showing the same thing. */}
       {spotlight && (
         <Spotlight
           repoPath={path}
@@ -495,9 +498,17 @@ export default function App() {
         />
       )}
 
+      {/* Narrow posture: the diff takes the whole surface. Hidden by CSS at
+          >= 700px, where the pane above is showing the same thing. */}
       {selected && (
         <div className="overlay">
-          <Diff patch={patch} title={title} onClose={() => setSelected(null)} />
+          <Diff
+            patch={patch}
+            title={title}
+            onClose={() => setSelected(null)}
+            repoPath={path}
+            oid={selected}
+          />
         </div>
       )}
     </div>

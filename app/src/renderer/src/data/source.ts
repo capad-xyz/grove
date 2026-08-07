@@ -25,6 +25,7 @@ import {
   FIXTURE_DIFF,
   FIXTURE_DIR,
   FIXTURE_FILES,
+  FIXTURE_PNG,
   FIXTURE_GREP,
   FIXTURE_RECENTS,
   FIXTURE_REPO,
@@ -41,6 +42,8 @@ export interface Source {
   worktrees(path: string): Promise<Worktree[]>;
   fileDiff(path: string, oid: string, file: string): Promise<string>;
   commitDiff(path: string, oid: string): Promise<string>;
+  /** Base64 bytes at a revision, or null. Used for image previews. */
+  fileBytesAt(path: string, rev: string, file: string): Promise<string | null>;
   onEvent(listener: (e: RepoEventEnvelope) => void): () => void;
   watch(path: string): Promise<void>;
   unwatch(): Promise<void>;
@@ -88,6 +91,7 @@ const liveSource = (): Source => ({
   // every other IPC reply behind them. That was the freeze on clicking a
   // commit: 913ms then, 106ms now.
   commitDiff: (p, oid) => window.grove.commitDiff(p, oid),
+  fileBytesAt: (p, rev, file) => window.grove.fileBytesAt(p, rev, file),
   onEvent: (l) => window.grove.onRepoEvent(l),
   watch: (p) => window.grove.watchRepo(p),
   unwatch: () => window.grove.unwatchRepo(),
@@ -190,6 +194,8 @@ const fixtureSource = (): Source => {
     status: () => wait(structuredClone(state)),
     worktrees: () => wait(FIXTURE_WORKTREES),
     fileDiff: () => wait(FIXTURE_DIFF),
+    // A 1x1 PNG: enough to prove the pipe renders without shipping an asset.
+    fileBytesAt: (_p, rev) => wait(rev.endsWith(String.fromCharCode(94)) ? null : FIXTURE_PNG),
     commitDiff: () => wait(FIXTURE_DIFF),
     onEvent: (l) => {
       listeners.add(l);

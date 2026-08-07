@@ -131,6 +131,37 @@ export async function gitReadOr(
   }
 }
 
+/**
+ * Read path that returns raw bytes instead of text.
+ *
+ * Every other read decodes as UTF-8, which silently mangles anything that is
+ * not text — a PNG round-tripped through `toString('utf8')` comes back as
+ * replacement characters and is no longer an image. Binary content has to
+ * bypass that decode entirely.
+ *
+ * No retry wrapper: this is only used for blob reads, which do not contend for
+ * the index lock.
+ */
+export function gitBytes(workdir: string, args: readonly string[]): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['-C', workdir, '--no-optional-locks', ...args], {
+      windowsHide: true,
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    child.stdout.on('data', (c: Buffer) => stdout.push(c));
+    child.stderr.on('data', (c: Buffer) => stderr.push(c));
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code !== 0) {
+        reject(new GitError(args, Buffer.concat(stderr).toString('utf8'), code));
+        return;
+      }
+      resolve(Buffer.concat(stdout));
+    });
+  });
+}
+
 /** Run git outside any repository (for `clone`, which has no workdir yet). */
 export function gitBare(args: readonly string[]): Promise<string> {
   return new Promise((resolve, reject) => {

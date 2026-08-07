@@ -70,6 +70,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   );
   handle(CHANNELS.branches, (path: string) => engine.branches(path));
   handle(CHANNELS.commitDetail, (path: string, oid: string) => engine.commitDetail(path, oid));
+  handle(CHANNELS.fileBytesAt, (path: string, rev: string, file: string) =>
+    engine.fileBytesAt(path, rev, file),
+  );
   handle(CHANNELS.commitDiff, (path: string, oid: string) => engine.commitDiff(path, oid));
   handle(CHANNELS.fileDiff, (path: string, oid: string, file: string) =>
     engine.fileDiff(path, oid, file),

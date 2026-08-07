@@ -22,6 +22,7 @@ export {
   branches,
   commitDetail,
   commitDiff,
+  fileBytesAt,
   fileDiff,
   fileDiffBetween,
   fileAt,

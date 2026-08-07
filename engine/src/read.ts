@@ -10,7 +10,7 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { discover, workdirOf } from './discover.ts';
-import { gitRead, gitReadOr } from './git.ts';
+import { gitBytes, gitRead, gitReadOr } from './git.ts';
 import {
   FS,
   commitFormat,
@@ -390,6 +390,28 @@ export function fileDiffBetween(
 /** Contents of `file` at revision `rev` (e.g. "HEAD"), for quick view. */
 export function fileAt(path: string, rev: string, file: string): Promise<string> {
   return gitRead(workdirOf(path), ['show', `${rev}:${file}`]);
+}
+
+/**
+ * Raw bytes of `file` at `rev`, base64-encoded, or null if it does not exist
+ * there — which is the normal answer for the "before" side of an added file,
+ * not an error worth surfacing.
+ *
+ * Base64 because the only consumer renders it as a `data:` URI, and because a
+ * Buffer would be structured-cloned across the IPC boundary as a byte array
+ * that the renderer would only have to re-encode anyway.
+ */
+export async function fileBytesAt(
+  path: string,
+  rev: string,
+  file: string,
+): Promise<string | null> {
+  try {
+    const bytes = await gitBytes(workdirOf(path), ['show', `${rev}:${file}`]);
+    return bytes.toString('base64');
+  } catch {
+    return null;
+  }
 }
 
 /** Per-line blame for a file at HEAD. */
