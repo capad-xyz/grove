@@ -8,7 +8,7 @@
  * function` discovered by a user.
  */
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 import { CHANNELS, REPO_EVENT_CHANNEL, type GroveApi } from '../shared/ipc';
 
@@ -51,6 +51,24 @@ const api: GroveApi = {
 
   // --- Agent ---
   generateCommitMessage: (path) => ipcRenderer.invoke(CHANNELS.generateCommitMessage, path),
+
+  pickDirectory: () => ipcRenderer.invoke(CHANNELS.pickDirectory),
+  knownRoots: () => ipcRenderer.invoke(CHANNELS.knownRoots),
+
+  /**
+   * Resolve a dropped folder to a real path.
+   *
+   * Electron removed `File.path` in v32; `webUtils.getPathForFile` is the
+   * replacement and it only exists in the preload, which is exactly the point —
+   * page script never gets a way to turn a File into a filesystem path.
+   */
+  pathForDropped: (file) => {
+    try {
+      return webUtils.getPathForFile(file) || null;
+    } catch {
+      return null;
+    }
+  },
 
   // --- Session ---
   recentRepos: () => ipcRenderer.invoke(CHANNELS.recentRepos),

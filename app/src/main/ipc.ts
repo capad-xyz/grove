@@ -6,7 +6,7 @@
  * nothing here should grow a second opinion about git.
  */
 
-import { ipcMain, type BrowserWindow } from 'electron';
+import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
 
 import * as engine from '@grove/engine';
 import { INV_FULL, INV_INDEX, INV_WORKDIR, type RepoEventEnvelope } from '@grove/engine';
@@ -153,6 +153,41 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const diff = await engine.stagedDiff(path);
     if (diff.trim() === '') throw new Error('Stage some changes first.');
     return engine.generateMessage(diff);
+  });
+
+  // --- Choosing a repository ---
+  // The native chooser is the affordance people expect from a desktop app, and
+  // it is the only way to reach a folder outside the browsable tree — a
+  // different drive, a network path, somewhere behind a permission prompt.
+  handle(CHANNELS.pickDirectory, async () => {
+    const win = getWindow();
+    const opts = {
+      title: 'Open a repository',
+      properties: ['openDirectory' as const, 'showHiddenFiles' as const],
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, opts)
+      : await dialog.showOpenDialog(opts);
+    return result.canceled ? null : (result.filePaths[0] ?? null);
+  });
+
+  handle(CHANNELS.knownRoots, () => {
+    // `app.getPath` throws for a location the OS does not define rather than
+    // returning empty, so each is asked for separately and skipped on failure.
+    const named: [string, Parameters<typeof app.getPath>[0]][] = [
+      ['home', 'home'],
+      ['desktop', 'desktop'],
+      ['documents', 'documents'],
+    ];
+    const out: { label: string; path: string }[] = [];
+    for (const [label, key] of named) {
+      try {
+        out.push({ label, path: app.getPath(key) });
+      } catch {
+        // Not defined on this system; simply not offered.
+      }
+    }
+    return out;
   });
 
   // --- Session ---

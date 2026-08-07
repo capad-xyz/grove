@@ -57,6 +57,10 @@ export const CHANNELS = {
   // Agent
   generateCommitMessage: 'grove:generate-commit-message',
 
+  // Choosing a repository
+  pickDirectory: 'grove:pick-directory',
+  knownRoots: 'grove:known-roots',
+
   // Session / lifecycle
   recentRepos: 'grove:recent-repos',
   addRecentRepo: 'grove:add-recent-repo',
@@ -112,6 +116,17 @@ export interface GroveApi {
 
   // --- Agent ---
   generateCommitMessage(path: string): Promise<string>;
+
+  /** Native folder chooser. Resolves to null if the user cancels. */
+  pickDirectory(): Promise<string | null>;
+  /** Places worth a one-click shortcut in the picker. */
+  knownRoots(): Promise<{ label: string; path: string }[]>;
+  /**
+   * Filesystem path for a dropped folder, or null. Synchronous because it is
+   * pure preload — no IPC — and drop handlers cannot await before reading the
+   * DataTransfer, whose items are cleared when the event handler returns.
+   */
+  pathForDropped(file: File): string | null;
 
   // --- Session ---
   recentRepos(): Promise<RecentRepo[]>;

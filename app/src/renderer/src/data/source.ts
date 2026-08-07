@@ -54,6 +54,11 @@ export interface Source {
   fileHistory(path: string, file: string): Promise<CommitNode[]>;
 
   // --- Choosing a repository ---
+  /** Native folder chooser; null if cancelled or unavailable (browser). */
+  pickDirectory(): Promise<string | null>;
+  knownRoots(): Promise<{ label: string; path: string }[]>;
+  /** Path for a dropped folder, or null if this source cannot resolve one. */
+  pathForDropped(file: File): string | null;
   recents(): Promise<RecentRepo[]>;
   remember(path: string, name: string): Promise<RecentRepo[]>;
   listDir(path: string): Promise<DirListing>;
@@ -96,6 +101,9 @@ const liveSource = (): Source => ({
   grep: (p, q) => window.grove.grepRepo(p, q),
   fileHistory: (p, file) => window.grove.fileHistory(p, file),
 
+  pickDirectory: () => window.grove.pickDirectory(),
+  knownRoots: () => window.grove.knownRoots(),
+  pathForDropped: (file) => window.grove.pathForDropped(file),
   recents: () => window.grove.recentRepos(),
   remember: (p, name) => window.grove.addRecentRepo(p, name),
   listDir: (p) => window.grove.listDir(p),
@@ -213,6 +221,16 @@ const fixtureSource = (): Source => {
     fileHistory: (_p, file) =>
       wait(FIXTURE_COMMITS.filter((_, i) => (file.length + i) % 3 !== 0).slice(0, 5)),
 
+    // A browser has no native chooser and cannot turn a dropped folder into a
+    // path. Returning null rather than throwing lets the picker offer the same
+    // affordances and simply report that this one needs the desktop app.
+    pickDirectory: () => wait(null),
+    knownRoots: () =>
+      wait([
+        { label: 'home', path: 'C:/Users/capad' },
+        { label: 'desktop', path: 'C:/Users/capad/Desktop' },
+      ]),
+    pathForDropped: () => null,
     recents: () => wait(FIXTURE_RECENTS),
     remember: () => wait(FIXTURE_RECENTS),
     listDir: () => wait(FIXTURE_DIR),

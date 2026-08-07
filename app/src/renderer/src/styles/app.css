@@ -197,6 +197,92 @@
   letter-spacing: 0;
 }
 
+/* Drop target. A dashed outline over the whole surface rather than a small
+   zone: the window is the target, so the whole window should say so. */
+.home[data-dropping='true'] {
+  outline: 2px dashed var(--line-strong);
+  outline-offset: -6px;
+}
+.dropzone {
+  padding: var(--gap) var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: none;
+}
+
+.home-path {
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad) 0;
+  flex: none;
+}
+.home-path input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
+.home-path button,
+.home-clone button {
+  flex: none;
+  padding: 0 var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+.home-path button:hover,
+.home-clone button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: var(--gap) var(--pad);
+  flex: none;
+}
+.crumb,
+.crumb-root {
+  padding: 1px 5px;
+  border-radius: var(--radius);
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+.crumb-root {
+  border: 1px solid var(--line);
+}
+.crumb:hover,
+.crumb-root:hover {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+/* Separators are drawn, not typed, so a path segment can never be confused
+   for one. */
+.crumb + .crumb::before {
+  content: '/';
+  color: var(--text-ghost);
+  margin-right: 5px;
+}
+.crumb-sep {
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+  margin: 0 2px;
+}
+
+/* Keyboard cursor in the browse list. Same vocabulary as every other selected
+   row: brightness plus the 2px rule, no hue. */
+.entry[data-cursor='true'] {
+  background: var(--surface-raised);
+  border-left-color: var(--line-strong);
+}
+.scroll:focus-visible {
+  outline: none;
+}
+
 .home-clone {
   display: flex;
   gap: var(--gap);
