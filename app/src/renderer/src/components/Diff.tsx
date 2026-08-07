@@ -7,7 +7,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { findMatches, segments, step } from '../data/find';
-import { base64Size, dataUri, imageFiles, mimeFor } from '../data/images';
+import { base64Size, dataUri, imageFiles, markdownFiles, mimeFor } from '../data/images';
+import { MarkdownPreview } from './Markdown';
 import { source } from '../data/source';
 
 interface Line {
@@ -132,6 +133,7 @@ export function Diff({
   const texts = useMemo(() => lines.map((l) => l.text), [lines]);
   const matches = useMemo(() => findMatches(texts, query), [texts, query]);
   const images = useMemo(() => (patch ? imageFiles(patch) : []), [patch]);
+  const markdown = useMemo(() => (patch ? markdownFiles(patch) : []), [patch]);
 
   // A new diff invalidates the old match positions entirely.
   useEffect(() => setAt(0), [patch, query]);
@@ -255,6 +257,12 @@ export function Diff({
             oid &&
             images.map((file) => (
               <ImagePair key={file} repoPath={repoPath} oid={oid} file={file} />
+            ))}
+
+          {repoPath &&
+            oid &&
+            markdown.map((file) => (
+              <MarkdownPreview key={file} repoPath={repoPath} oid={oid} file={file} />
             ))}
 
           {/* The inner wrapper shrink-wraps to the widest line, so rows fill

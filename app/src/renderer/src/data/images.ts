@@ -1,9 +1,11 @@
 /**
- * Image awareness for the diff.
+ * File awareness for the diff: which paths a patch touches, and which of them
+ * deserve to be shown as something other than text.
  *
  * When an agent changes a `.png`, git's answer is "Binary files a/x.png and
- * b/x.png differ", which tells you nothing you wanted to know. These helpers
- * find those files in a patch so the diff can show the two pictures instead.
+ * b/x.png differ", which tells you nothing you wanted to know. Markdown has a
+ * milder version of the same problem — the diff is right, but the rendered
+ * result is sometimes the question.
  */
 
 const MIME: Record<string, string> = {
@@ -27,13 +29,13 @@ export function mimeFor(path: string): string | null {
 export const isImage = (path: string): boolean => mimeFor(path) !== null;
 
 /**
- * Image paths mentioned by a unified diff, in order, deduplicated.
+ * Every path a unified diff touches, in order, deduplicated.
  *
  * Reads the `diff --git a/X b/X` headers rather than the `+++`/`---` lines,
  * because those carry `/dev/null` for adds and deletes and would lose the
- * filename exactly when a new image is the thing you want to look at.
+ * filename exactly when a new file is the thing you want to look at.
  */
-export function imageFiles(patch: string): string[] {
+export function filesInPatch(patch: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
 
@@ -47,12 +49,19 @@ export function imageFiles(patch: string): string[] {
     if (bAt === -1) continue;
     const file = line.slice(bAt + 3);
 
-    if (!isImage(file) || seen.has(file)) continue;
+    if (seen.has(file)) continue;
     seen.add(file);
     out.push(file);
   }
   return out;
 }
+
+export const imageFiles = (patch: string): string[] => filesInPatch(patch).filter(isImage);
+
+export const isMarkdown = (path: string): boolean => /\.mdx?$/i.test(path);
+
+export const markdownFiles = (patch: string): string[] =>
+  filesInPatch(patch).filter(isMarkdown);
 
 /** A `data:` URI, which is what the CSP permits for images. */
 export const dataUri = (mime: string, base64: string): string =>

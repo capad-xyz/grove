@@ -25,6 +25,7 @@ import {
   FIXTURE_DIFF,
   FIXTURE_DIR,
   FIXTURE_FILES,
+  FIXTURE_MARKDOWN,
   FIXTURE_PNG,
   FIXTURE_GREP,
   FIXTURE_RECENTS,
@@ -44,6 +45,8 @@ export interface Source {
   commitDiff(path: string, oid: string): Promise<string>;
   /** Base64 bytes at a revision, or null. Used for image previews. */
   fileBytesAt(path: string, rev: string, file: string): Promise<string | null>;
+  /** Text of a file at a revision. Used for the markdown preview. */
+  fileAt(path: string, rev: string, file: string): Promise<string>;
   onEvent(listener: (e: RepoEventEnvelope) => void): () => void;
   watch(path: string): Promise<void>;
   unwatch(): Promise<void>;
@@ -92,6 +95,7 @@ const liveSource = (): Source => ({
   // commit: 913ms then, 106ms now.
   commitDiff: (p, oid) => window.grove.commitDiff(p, oid),
   fileBytesAt: (p, rev, file) => window.grove.fileBytesAt(p, rev, file),
+  fileAt: (p, rev, file) => window.grove.fileAt(p, rev, file),
   onEvent: (l) => window.grove.onRepoEvent(l),
   watch: (p) => window.grove.watchRepo(p),
   unwatch: () => window.grove.unwatchRepo(),
@@ -195,6 +199,7 @@ const fixtureSource = (): Source => {
     worktrees: () => wait(FIXTURE_WORKTREES),
     fileDiff: () => wait(FIXTURE_DIFF),
     // A 1x1 PNG: enough to prove the pipe renders without shipping an asset.
+    fileAt: () => wait(FIXTURE_MARKDOWN),
     fileBytesAt: (_p, rev) => wait(rev.endsWith(String.fromCharCode(94)) ? null : FIXTURE_PNG),
     commitDiff: () => wait(FIXTURE_DIFF),
     onEvent: (l) => {

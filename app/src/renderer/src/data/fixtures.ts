@@ -160,6 +160,30 @@ export const FIXTURE_GREP: GrepHit[] = [
   { file: 'engine/src/service.ts', line: 38, text: 'const QUIET_MS = 80;' },
 ];
 
+export const FIXTURE_MARKDOWN = [
+  '# Grove',
+  '',
+  'A **featherweight** git companion that sits beside your _AI coding editor_.',
+  '',
+  '## Pillars',
+  '',
+  '- Read-and-review, refreshing live',
+  '- Worktrees as a first-class surface',
+  '- Bring your own agent',
+  '',
+  '> Would I keep this open beside my editor?',
+  '',
+  'Run it with the `npm run dev` script, or see [the repo](https://github.com/capad-xyz/grove).',
+  '',
+  '```ts',
+  'const engine = await open(repo);',
+  '```',
+  '',
+  '---',
+  '',
+  '<script>alert(1)</script>',
+].join(String.fromCharCode(10));
+
 export const FIXTURE_RECENTS: RecentRepo[] = [
   { path: 'C:/Users/capad/Desktop/Grove', name: 'Grove' },
   { path: 'C:/Users/capad/Desktop/capad-portfolio', name: 'capad-portfolio' },
@@ -200,4 +224,9 @@ export const FIXTURE_DIFF = `diff --git a/engine/src/read.ts b/engine/src/read.t
 diff --git a/app/packaging/icon.png b/app/packaging/icon.png
 index 1a2b3c4..5d6e7f8 100644
 Binary files a/app/packaging/icon.png and b/app/packaging/icon.png differ
+diff --git a/README.md b/README.md
+@@ -1,3 +1,3 @@
+ # Grove
+-A git companion.
++A **featherweight** git companion that sits beside your _AI coding editor_.
 `;

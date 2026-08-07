@@ -559,6 +559,103 @@
   color: var(--text-ghost);
 }
 
+/* --- Markdown preview -----------------------------------------------------
+   Collapsed by default: the diff is what you came for, and rendered output
+   answers a different, secondary question. Prose gets a readable measure and
+   a little more line-height than the diff, because it is read rather than
+   scanned. */
+
+.md-block {
+  border-bottom: 1px solid var(--line);
+}
+.md-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
+  height: var(--row);
+  padding: 0 var(--pad);
+  text-align: left;
+}
+.md-toggle:hover {
+  background: var(--surface-raised);
+}
+.md-name {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-body {
+  padding: var(--gap) var(--pad) var(--pad);
+  max-width: 68ch;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4,
+.md-body h5,
+.md-body h6 {
+  color: var(--text);
+  font-size: var(--fs-body);
+  margin: 1.2em 0 0.4em;
+}
+.md-body h1 {
+  font-size: 15px;
+}
+.md-body h2 {
+  font-size: 13px;
+}
+.md-body p,
+.md-body ul,
+.md-body ol,
+.md-body blockquote {
+  margin: 0.6em 0;
+}
+.md-body ul,
+.md-body ol {
+  padding-left: 1.4em;
+}
+.md-body blockquote {
+  border-left: 2px solid var(--line-strong);
+  padding-left: var(--gap);
+  color: var(--text-faint);
+}
+.md-body hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1em 0;
+}
+.md-body a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body strong {
+  color: var(--text);
+}
+.md-code,
+.md-pre {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.md-code {
+  padding: 0 4px;
+  color: var(--text);
+}
+.md-pre {
+  padding: var(--gap);
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+.md-pre code {
+  white-space: pre;
+}
+
 /* --- Find in diff ---------------------------------------------------------
    Highlights are the one deliberate exception to "diff colour is the only
    saturated colour": they are transient, they exist only while you are
