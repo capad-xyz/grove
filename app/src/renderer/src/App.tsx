@@ -43,6 +43,10 @@ export default function App() {
   const [status, setStatus] = useState<WorkingStatus | null>(null);
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  /** A working-tree file being previewed. Mutually exclusive with `selected`. */
+  const [viewingFile, setViewingFile] = useState<{ path: string; staged: boolean } | null>(
+    null,
+  );
   const [patch, setPatch] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -345,6 +349,7 @@ export default function App() {
         case 'Escape':
           e.preventDefault();
           setSelected(null);
+          setViewingFile(null);
           return;
       }
     };
@@ -367,6 +372,7 @@ export default function App() {
   const selectCommit = useCallback(
     (oid: string) => {
       if (!path) return;
+      setViewingFile(null); // the diff pane shows one thing at a time
       setSelected(oid);
       setPatch(null);
       source
@@ -376,12 +382,31 @@ export default function App() {
     },
     [path],
   );
+
+  /**
+   * Preview a working-tree file. This is what a row click does now — looking at
+   * a file must not be the same gesture as changing the index.
+   */
+  const viewFile = useCallback(
+    (file: string, staged: boolean) => {
+      if (!path) return;
+      setSelected(null);
+      setViewingFile({ path: file, staged });
+      setPatch(null);
+      source
+        .workingDiff(path, file, staged)
+        .then(setPatch)
+        .catch((e) => setPatch(`Could not load diff.\n\n${String(e)}`));
+    },
+    [path],
+  );
   selectCommitRef.current = selectCommit;
 
   const title = useMemo(() => {
+    if (viewingFile) return `${viewingFile.path}  (${viewingFile.staged ? 'staged' : 'working'})`;
     const c = commits.find((x) => x.id === selected);
     return c ? `${c.short}  ${c.summary}` : 'diff';
-  }, [commits, selected]);
+  }, [commits, selected, viewingFile]);
 
   if (path === null) {
     return (
@@ -468,8 +493,8 @@ export default function App() {
 
         <div className="pane-diff">
           <Diff
-            patch={selected ? patch : null}
-            title={selected ? title : 'diff'}
+            patch={selected || viewingFile ? patch : null}
+            title={selected || viewingFile ? title : 'diff'}
             repoPath={path}
             oid={selected}
           />
@@ -479,6 +504,8 @@ export default function App() {
       <WorkingTree
         status={status}
         busy={writing}
+        selected={viewingFile?.path ?? null}
+        onView={viewFile}
         onToggle={toggleFile}
         onStageAll={() => void write(() => source.stageAll(path)).catch(() => {})}
         onUnstageAll={() => void write(() => source.unstageAll(path)).catch(() => {})}
@@ -500,12 +527,15 @@ export default function App() {
 
       {/* Narrow posture: the diff takes the whole surface. Hidden by CSS at
           >= 700px, where the pane above is showing the same thing. */}
-      {selected && (
+      {(selected || viewingFile) && (
         <div className="overlay">
           <Diff
             patch={patch}
             title={title}
-            onClose={() => setSelected(null)}
+            onClose={() => {
+              setSelected(null);
+              setViewingFile(null);
+            }}
             repoPath={path}
             oid={selected}
           />

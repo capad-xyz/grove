@@ -1,10 +1,16 @@
 /**
  * The working tree, and the only place in Grove that writes.
  *
- * Rows toggle: clicking something unstaged stages it, clicking something staged
- * unstages it. There is no separate button per row in the resting state — the
- * verb appears on hover, because a column of buttons at this density is louder
- * than the filenames it sits beside, and the filenames are the content.
+ * Clicking a row *previews* it — the file's diff opens, same as clicking a
+ * commit. Staging is a separate control, because the row used to toggle and
+ * that made looking at a file indistinguishable from changing the index. The
+ * cost of a misclick was asymmetric: previewing a file you did not mean to is
+ * free, staging one is not, and you often do not notice until you commit.
+ *
+ * The stage control still only appears on hover, because a column of buttons
+ * at this density is louder than the filenames it sits beside and the
+ * filenames are the content. It carries its own `stopPropagation`, so pressing
+ * it never also opens the preview underneath.
  */
 
 import { useCallback, useState } from 'react';
@@ -43,6 +49,8 @@ function splitPath(path: string): { dir: string; base: string } {
 export function WorkingTree({
   status,
   busy,
+  selected,
+  onView,
   onToggle,
   onStageAll,
   onUnstageAll,
@@ -51,6 +59,9 @@ export function WorkingTree({
 }: {
   status: WorkingStatus | null;
   busy: boolean;
+  /** Path currently previewed, so the row can show it is the one on screen. */
+  selected: string | null;
+  onView: (file: string, staged: boolean) => void;
   onToggle: (file: string, staged: boolean) => void;
   onStageAll: () => void;
   onUnstageAll: () => void;
@@ -127,11 +138,12 @@ export function WorkingTree({
                     role="button"
                     tabIndex={0}
                     data-busy={busy}
-                    onClick={() => !busy && onToggle(f.path, g.key === 'staged')}
+                    data-selected={selected === f.path}
+                    onClick={() => onView(f.path, g.key === 'staged')}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        if (!busy) onToggle(f.path, g.key === 'staged');
+                        onView(f.path, g.key === 'staged');
                       }
                     }}
                   >
@@ -142,7 +154,21 @@ export function WorkingTree({
                       {dir && <span className="dir">{dir}</span>}
                       <span className="base">{base}</span>
                     </span>
-                    <span className="verb label">{g.verb}</span>
+                    {/* The only thing on this row that writes. Its own click
+                        target and its own stopPropagation, so staging never
+                        also opens the preview and previewing never stages. */}
+                    <button
+                      className="verb label"
+                      disabled={busy}
+                      title={`${g.verb} ${f.path}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!busy) onToggle(f.path, g.key === 'staged');
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      {g.verb}
+                    </button>
                   </div>
                 );
               })}

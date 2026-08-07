@@ -26,6 +26,7 @@ import {
   FIXTURE_DIR,
   FIXTURE_FILES,
   FIXTURE_MARKDOWN,
+  FIXTURE_WORKING_DIFF,
   FIXTURE_PNG,
   FIXTURE_GREP,
   FIXTURE_RECENTS,
@@ -47,6 +48,8 @@ export interface Source {
   fileBytesAt(path: string, rev: string, file: string): Promise<string | null>;
   /** Text of a file at a revision. Used for the markdown preview. */
   fileAt(path: string, rev: string, file: string): Promise<string>;
+  /** Diff of one working-tree file. `staged` selects the index side. */
+  workingDiff(path: string, file: string, staged: boolean): Promise<string>;
   onEvent(listener: (e: RepoEventEnvelope) => void): () => void;
   watch(path: string): Promise<void>;
   unwatch(): Promise<void>;
@@ -96,6 +99,7 @@ const liveSource = (): Source => ({
   commitDiff: (p, oid) => window.grove.commitDiff(p, oid),
   fileBytesAt: (p, rev, file) => window.grove.fileBytesAt(p, rev, file),
   fileAt: (p, rev, file) => window.grove.fileAt(p, rev, file),
+  workingDiff: (p, file, staged) => window.grove.workingDiff(p, file, staged),
   onEvent: (l) => window.grove.onRepoEvent(l),
   watch: (p) => window.grove.watchRepo(p),
   unwatch: () => window.grove.unwatchRepo(),
@@ -200,6 +204,7 @@ const fixtureSource = (): Source => {
     fileDiff: () => wait(FIXTURE_DIFF),
     // A 1x1 PNG: enough to prove the pipe renders without shipping an asset.
     fileAt: () => wait(FIXTURE_MARKDOWN),
+    workingDiff: (_p, file) => wait(FIXTURE_WORKING_DIFF.replace(/__FILE__/g, file)),
     fileBytesAt: (_p, rev) => wait(rev.endsWith(String.fromCharCode(94)) ? null : FIXTURE_PNG),
     commitDiff: () => wait(FIXTURE_DIFF),
     onEvent: (l) => {

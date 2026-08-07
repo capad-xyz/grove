@@ -184,6 +184,17 @@ export const FIXTURE_MARKDOWN = [
   '<script>alert(1)</script>',
 ].join(String.fromCharCode(10));
 
+/** `__FILE__` is substituted so the harness proves the right file was asked for. */
+export const FIXTURE_WORKING_DIFF = [
+  'diff --git a/__FILE__ b/__FILE__',
+  '@@ -1,4 +1,5 @@',
+  ' export function open(path) {',
+  '-  return legacy(path);',
+  '+  const d = discover(path);',
+  '+  return { path: d.gitDir, workdir: d.workdir };',
+  ' }',
+].join(String.fromCharCode(10));
+
 export const FIXTURE_RECENTS: RecentRepo[] = [
   { path: 'C:/Users/capad/Desktop/Grove', name: 'Grove' },
   { path: 'C:/Users/capad/Desktop/capad-portfolio', name: 'capad-portfolio' },

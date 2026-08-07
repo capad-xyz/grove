@@ -875,15 +875,37 @@ mark.hit[data-current-match='true'] {
 }
 
 /* The row verb stays hidden until hover: a column of buttons at this density
-   would be louder than the filenames it sits beside. */
+   would be louder than the filenames it sits beside.
+   `pointer-events: none` while hidden is load-bearing — this is the only
+   control that writes, and an invisible-but-clickable one would just relocate
+   the accidental-staging problem the preview change exists to fix. */
 .status .verb {
   flex: none;
   opacity: 0;
-  transition: opacity 120ms var(--ease);
+  pointer-events: none;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  transition:
+    opacity 120ms var(--ease),
+    color 120ms var(--ease);
 }
 .status .row:hover .verb,
-.status .row:focus-visible .verb {
+.status .row:focus-within .verb,
+.status .verb:focus-visible {
   opacity: 1;
+  pointer-events: auto;
+}
+.status .verb:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.status .verb:focus-visible {
+  border-color: var(--line-strong);
+  outline: none;
+}
+.status .verb:disabled {
+  color: var(--text-ghost);
 }
 .status .row[data-busy='true'] {
   cursor: default;
