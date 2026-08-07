@@ -4,6 +4,10 @@ dist/
 out/
 .svelte-kit/
 build/
+
+# Packaged desktop builds (electron-builder)
+release/
+release-check/
 *.local
 .env
 .env.*

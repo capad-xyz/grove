@@ -20,10 +20,13 @@ src/renderer/         phase 3 harness (temporary)
 ## Commands
 
 ```bash
-npm run dev        # vite dev server + electron, with HMR in the renderer
-npm run build      # builds the engine, then main/preload/renderer into out/
-npm run smoke      # headless: drives window.grove end to end, exits non-zero on failure
-npm run typecheck  # main+preload (node libs) and renderer (DOM libs), separately
+npm run dev          # vite dev server + electron, with HMR in the renderer
+npm run dev:renderer # renderer only, in a browser, on fixtures (fast design loop)
+npm run build        # builds the engine, then main/preload/renderer into out/
+npm run smoke        # headless: drives window.grove end to end, non-zero on failure
+npm run check        # typecheck (3 configs) + renderer tests
+npm run package:dir  # unpacked build into release/win-unpacked — no installer
+npm run package      # full installer for the host platform
 ```
 
 `npm run smoke` is the one that matters for CI. It drives the *real* path —
@@ -64,9 +67,17 @@ holding the user's SSH keys. So:
   `rollupOptions.external` overrides under Vite 7, so it is left as a runtime
   `require`. That works because Electron 43 ships Node 22, which supports
   `require(esm)` for modules without top-level await — and the engine has none.
-  Packaging (phase 5) must therefore ship `engine/dist`; if that turns out to be
-  awkward, the fix is to emit CJS from the engine rather than to keep fighting
-  the bundler.
+  **This is settled: it packages correctly.** electron-builder dereferences the
+  `file:` link and `require('@grove/engine')` resolves to
+  `node_modules/@grove/engine/dist/index.js` inside the asar, with `chokidar`
+  alongside it. The engine does not need a CJS build.
+- **Do not exclude `*.json` from the engine when packaging.** It takes
+  `package.json` with it, Node can then no longer resolve `@grove/engine`, and
+  the app dies on its first require with no other symptom. Exclusions in
+  `electron-builder.yml` are deliberately specific for this reason.
+- **`npm run build` cleans `out/` first.** electron-vite does not, so a renamed
+  or removed entry point keeps shipping. A stale `out/PROBE/` from a debugging
+  session made it into a package before this was added.
 - **Electron's binary may not download on install.** If `npm start` fails with
   `Error: Electron uninstall`, run `node node_modules/electron/install.js`.
 - **Watch the port on Windows.** Hyper-V reserves several TCP ranges, and a
@@ -78,3 +89,15 @@ holding the user's SSH keys. So:
 - Electron logs every rejected `ipcMain.handle` to stderr. Expected errors — a
   path that isn't a repository, say — will show up there even though the
   renderer handled them correctly.
+- **`EBUSY: resource busy or locked` on `app.asar` when repackaging** is
+  Windows Defender still scanning the file it was just handed. Wait, or build
+  to a scratch output with `-c.directories.output=release-check`.
+- **The browser harness tab is hidden, so Chrome clamps its timers** — a 40ms
+  `setTimeout` was measured at 464ms. Poll for DOM changes when testing there
+  rather than sleeping, or you will read stale state and conclude the app is
+  broken. Editing `data/source.ts` also leaves HMR holding a stale module
+  instance, so hard-reload before debugging anything that looks dead.
+- **No application icon yet.** Packaging warns `default Electron icon is used`.
+  Drop one at `packaging/icon.png` (256×256 or larger) when there is a mark to
+  use; `packaging/` is the `buildResources` dir precisely so it is not caught by
+  the repo's `build/` ignore rule.
