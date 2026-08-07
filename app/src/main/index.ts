@@ -11,7 +11,7 @@
 
 import { join } from 'node:path';
 
-import { app, shell, BrowserWindow, session } from 'electron';
+import { app, shell, BrowserWindow, Menu, session } from 'electron';
 
 import { disposeIpc, registerIpc } from './ipc';
 import { runSmoke } from './smoke';
@@ -88,6 +88,18 @@ function createWindow(): BrowserWindow {
   // focus.
   if (!SMOKE_REPO) win.once('ready-to-show', () => win.show());
 
+  // Dropping the menu also drops its devtools accelerator, so put it back —
+  // but only in dev, so a packaged build has no key that opens an inspector.
+  if (isDev) {
+    win.webContents.on('before-input-event', (_event, input) => {
+      if (input.type !== 'keyDown') return;
+      const isToggle =
+        input.key === 'F12' ||
+        (input.control && input.shift && input.key.toLowerCase() === 'i');
+      if (isToggle) win.webContents.toggleDevTools();
+    });
+  }
+
   if (DEV_URL) void win.loadURL(DEV_URL);
   else void win.loadFile(join(__dirname, '../renderer/index.html'));
 
@@ -138,6 +150,12 @@ void app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) =>
     callback(false),
   );
+
+  // Electron's stock File/Edit/View/Window menu is noise on a tool this size,
+  // and none of its items do anything Grove needs. Removed on Windows and
+  // Linux; kept on macOS, where the app menu is what makes the standard
+  // copy/paste and quit accelerators work at all.
+  if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
 
   hardenWebContents();
   registerIpc(() => mainWindow);

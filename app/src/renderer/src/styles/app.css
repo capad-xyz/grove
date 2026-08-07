@@ -220,10 +220,23 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Both axes scroll. Code lines are `pre`, so a diff is routinely wider than its
+   pane — clipping it with `overflow-x: hidden` silently swallowed the end of
+   every long line with no way to reach it, which in a diff viewer means you
+   cannot read the change you opened. */
 .diff-body {
   font-size: var(--fs-code);
   line-height: var(--lh-code);
   padding: 6px 0;
+  overflow: auto;
+  min-height: 0;
+}
+/* Shrink-wraps to the widest line, with a 100% floor so a short diff still
+   fills the pane. Rows then inherit that width and their backgrounds run the
+   full scrolled distance. */
+.diff-lines {
+  display: inline-block;
+  min-width: 100%;
 }
 .diff-line {
   display: flex;
@@ -302,14 +315,27 @@
 .status .code[data-code='D'] {
   color: var(--del);
 }
+/* The filename is what you scan, so it is brighter and never shrinks; the
+   directory is dimmer and gives up space first. Everything stays LTR — see the
+   comment in Chrome.tsx for why the rtl-truncation trick is not used. */
 .status .path {
+  display: flex;
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+.status .dir {
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl;
-  text-align: left;
+  color: var(--text-faint);
+}
+.status .base {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-dim);
 }
 

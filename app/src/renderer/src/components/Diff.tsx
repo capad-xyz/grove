@@ -60,12 +60,18 @@ export function Diff({
       ) : patch.trim() === '' ? (
         <div className="empty">No textual changes.</div>
       ) : (
-        <div className="diff-body scroll">
-          {parseDiff(patch).map((l, i) => (
-            <div key={i} className={`diff-line ${l.kind}`}>
-              {l.text === '' ? ' ' : l.text}
-            </div>
-          ))}
+        <div className="diff-body">
+          {/* The inner wrapper shrink-wraps to the widest line, so rows fill
+              the full scrolled width. Sizing the rows themselves against 100%
+              measures the *pane*, which leaves +/- backgrounds ending mid-air
+              once you scroll right. */}
+          <div className="diff-lines">
+            {parseDiff(patch).map((l, i) => (
+              <div key={i} className={`diff-line ${l.kind}`}>
+                {l.text === '' ? ' ' : l.text}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

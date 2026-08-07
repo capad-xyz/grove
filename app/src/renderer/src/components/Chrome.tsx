@@ -79,10 +79,23 @@ export function Status({ status }: { status: WorkingStatus | null }) {
               <span className="code" data-code={f.status.trim()}>
                 {f.status.trim() || '·'}
               </span>
-              {/* RTL truncation keeps the filename visible and clips the
-                  directory, which is the part you can afford to lose. */}
+              {/* Split rather than truncate. The obvious trick — `direction:
+                  rtl` so the ellipsis eats the directory — reorders bidi-neutral
+                  leading characters, painting `.coderabbit.yaml` as
+                  `coderabbit.yaml.`. A git tool that displays the wrong
+                  filename is worse than one that truncates awkwardly, so the
+                  directory is its own shrinkable span and the filename never
+                  shrinks at all. */}
               <span className="path" title={f.path}>
-                {f.path}
+                {(() => {
+                  const cut = Math.max(f.path.lastIndexOf('/'), f.path.lastIndexOf('\\'));
+                  return (
+                    <>
+                      {cut !== -1 && <span className="dir">{f.path.slice(0, cut + 1)}</span>}
+                      <span className="base">{f.path.slice(cut + 1)}</span>
+                    </>
+                  );
+                })()}
               </span>
             </div>
           ))}
