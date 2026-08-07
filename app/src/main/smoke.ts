@@ -10,6 +10,11 @@
  * at a window, and "someone looked at it once" is not a regression test.
  */
 
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import type { BrowserWindow } from 'electron';
 
 interface Check {
@@ -94,11 +99,92 @@ function checks(repo: string): Check[] {
   ];
 }
 
+/**
+ * Write checks run against a throwaway repository, never the one passed in.
+ * Staging and committing into the user's actual working tree to prove the
+ * button works would be a spectacularly bad trade.
+ */
+function scratchRepo(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'grove-smoke-'));
+  const git = (...args: string[]) => execFileSync('git', ['-C', dir, ...args], { windowsHide: true });
+
+  execFileSync('git', ['init', '-b', 'main', dir], { windowsHide: true });
+  git('config', 'user.email', 'smoke@grove.invalid');
+  git('config', 'user.name', 'Grove Smoke');
+  git('config', 'commit.gpgsign', 'false');
+  writeFileSync(join(dir, 'seed.txt'), 'seed\n');
+  git('add', '-A');
+  git('commit', '-m', 'seed');
+
+  // Leave one modified and one untracked file for the write checks to move.
+  writeFileSync(join(dir, 'seed.txt'), 'seed\nchanged\n');
+  writeFileSync(join(dir, 'fresh.txt'), 'fresh\n');
+  return dir;
+}
+
+function writeChecks(dir: string): Check[] {
+  const r = JSON.stringify(dir);
+  return [
+    {
+      name: 'scratch repo starts dirty',
+      script: `window.grove.workingStatus(${r}).then(s =>
+        s.staged.length + '/' + s.unstaged.length + '/' + s.untracked.length + ' staged/unstaged/untracked')`,
+    },
+    {
+      name: 'stageFile moves a file to staged',
+      script: `window.grove.stageFile(${r}, 'seed.txt')
+        .then(() => window.grove.workingStatus(${r}))
+        .then(s => s.staged.some(f => f.path === 'seed.txt')
+          ? 'seed.txt staged'
+          : (() => { throw new Error('not staged: ' + JSON.stringify(s.staged)) })())`,
+    },
+    {
+      name: 'unstageFile puts it back',
+      script: `window.grove.unstageFile(${r}, 'seed.txt')
+        .then(() => window.grove.workingStatus(${r}))
+        .then(s => s.staged.length === 0 ? 'staged is empty again'
+          : (() => { throw new Error('still staged') })())`,
+    },
+    {
+      name: 'stageAll takes untracked files too',
+      script: `window.grove.stageAll(${r})
+        .then(() => window.grove.workingStatus(${r}))
+        .then(s => s.untracked.length === 0 && s.staged.length === 2
+          ? s.staged.length + ' staged, 0 untracked'
+          : (() => { throw new Error(JSON.stringify(s)) })())`,
+    },
+    {
+      name: 'commitChanges advances the graph',
+      script: `window.grove.commitGraph(${r}, 50, null).then(before =>
+        window.grove.commitChanges(${r}, 'test: smoke commit')
+          .then(() => window.grove.commitGraph(${r}, 50, null))
+          .then(after => after.length === before.length + 1 && after[0].summary === 'test: smoke commit'
+            ? before.length + ' -> ' + after.length + ' commits'
+            : (() => { throw new Error('graph did not advance: ' + JSON.stringify(after.map(c=>c.summary))) })()))`,
+    },
+    {
+      name: 'working tree is clean after commit',
+      script: `window.grove.repoDirty(${r}).then(d => d === false
+        ? 'clean'
+        : (() => { throw new Error('still dirty') })())`,
+    },
+  ];
+}
+
 export async function runSmoke(win: BrowserWindow, repo: string): Promise<number> {
   process.stdout.write(`\n  smoke: driving window.grove against ${repo}\n\n`);
 
+  let scratch: string | null = null;
+  try {
+    scratch = scratchRepo();
+  } catch (e) {
+    process.stdout.write(`  WARN  could not create scratch repo, skipping write checks: ${String(e)}\n`);
+  }
+
+  const all = [...checks(repo), ...(scratch ? writeChecks(scratch) : [])];
+
   let failed = 0;
-  for (const check of checks(repo)) {
+  for (const check of all) {
     try {
       const result = await win.webContents.executeJavaScript(check.script, true);
       process.stdout.write(`  PASS  ${check.name.padEnd(38)} ${String(result)}\n`);
@@ -107,6 +193,14 @@ export async function runSmoke(win: BrowserWindow, repo: string): Promise<number
       process.stdout.write(
         `  FAIL  ${check.name.padEnd(38)} ${e instanceof Error ? e.message : String(e)}\n`,
       );
+    }
+  }
+
+  if (scratch) {
+    try {
+      rmSync(scratch, { recursive: true, force: true, maxRetries: 3 });
+    } catch {
+      // Windows keeps .git/objects read-only; a leftover temp dir is harmless.
     }
   }
 

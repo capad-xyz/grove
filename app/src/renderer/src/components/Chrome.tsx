@@ -6,7 +6,7 @@
  * agent — and you cannot supervise parallel agents from a dropdown.
  */
 
-import type { RepoSummary, WorkingStatus, Worktree } from '@grove/engine';
+import type { RepoSummary, Worktree } from '@grove/engine';
 
 export function RepoBar({
   repo,
@@ -66,54 +66,5 @@ export function Worktrees({ worktrees }: { worktrees: Worktree[] }) {
   );
 }
 
-export function Status({ status }: { status: WorkingStatus | null }) {
-  if (!status) return null;
-
-  const files = [
-    ...status.staged.map((f) => ({ ...f, group: 'staged' as const })),
-    ...status.unstaged.map((f) => ({ ...f, group: 'unstaged' as const })),
-    ...status.untracked.map((p) => ({ path: p, status: '?', group: 'untracked' as const })),
-  ];
-
-  return (
-    <section className="status" aria-label="Working tree">
-      <div className="section-head">
-        <span className="label">working tree</span>
-        <span className="rule" />
-        <span className="label">{files.length === 0 ? 'clean' : `${files.length}`}</span>
-      </div>
-
-      {files.length === 0 ? (
-        <div className="empty">Nothing to commit.</div>
-      ) : (
-        <div className="scroll">
-          {files.map((f) => (
-            <div className="row file" key={`${f.group}:${f.path}`}>
-              <span className="code" data-code={f.status.trim()}>
-                {f.status.trim() || '·'}
-              </span>
-              {/* Split rather than truncate. The obvious trick — `direction:
-                  rtl` so the ellipsis eats the directory — reorders bidi-neutral
-                  leading characters, painting `.coderabbit.yaml` as
-                  `coderabbit.yaml.`. A git tool that displays the wrong
-                  filename is worse than one that truncates awkwardly, so the
-                  directory is its own shrinkable span and the filename never
-                  shrinks at all. */}
-              <span className="path" title={f.path}>
-                {(() => {
-                  const cut = Math.max(f.path.lastIndexOf('/'), f.path.lastIndexOf('\\'));
-                  return (
-                    <>
-                      {cut !== -1 && <span className="dir">{f.path.slice(0, cut + 1)}</span>}
-                      <span className="base">{f.path.slice(cut + 1)}</span>
-                    </>
-                  );
-                })()}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
+// The working tree lives in WorkingTree.tsx — it is the only surface that
+// writes, so it is worth keeping apart from this file's read-only chrome.

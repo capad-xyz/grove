@@ -14,7 +14,8 @@ import type { CommitNode, RepoSummary, WorkingStatus, Worktree } from '@grove/en
 import { Commits } from './components/Commits';
 import { Diff } from './components/Diff';
 import { Home, nameOf } from './components/Home';
-import { RepoBar, Status, Worktrees } from './components/Chrome';
+import { RepoBar, Worktrees } from './components/Chrome';
+import { WorkingTree } from './components/WorkingTree';
 import { source } from './data/source';
 import {
   fileCount,
@@ -158,6 +159,35 @@ export default function App() {
     };
   }, []);
 
+  // --- Writes -------------------------------------------------------------
+  // None of these refetch. Every write pokes the coordinator on the main side,
+  // which recomputes and pushes a `status_changed` event — so the refresh
+  // arrives through the same pipeline as a watcher event instead of racing it.
+  const [writing, setWriting] = useState(false);
+
+  const write = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
+    setWriting(true);
+    setError(null);
+    try {
+      return await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      throw e; // callers decide what to keep on failure
+    } finally {
+      setWriting(false);
+    }
+  }, []);
+
+  const toggleFile = useCallback(
+    (file: string, staged: boolean) => {
+      if (!path) return;
+      void write(() => (staged ? source.unstage(path, file) : source.stage(path, file))).catch(
+        () => {},
+      );
+    },
+    [path, write],
+  );
+
   // --- Diff for the selected commit ---------------------------------------
   const selectCommit = useCallback(
     (oid: string) => {
@@ -253,7 +283,17 @@ export default function App() {
         </div>
       </div>
 
-      <Status status={status} />
+      <WorkingTree
+        status={status}
+        busy={writing}
+        onToggle={toggleFile}
+        onStageAll={() => void write(() => source.stageAll(path)).catch(() => {})}
+        onUnstageAll={() => void write(() => source.unstageAll(path)).catch(() => {})}
+        onCommit={async (message) => {
+          await write(() => source.commit(path, message));
+        }}
+        onDraft={() => write(() => source.draftMessage(path))}
+      />
 
       {/* Narrow posture: the diff takes the whole surface. Hidden by CSS at
           >= 700px, where the pane above is showing the same thing. */}

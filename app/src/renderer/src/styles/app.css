@@ -457,6 +457,62 @@
   min-width: 0;
   white-space: nowrap;
 }
+
+/* Sub-headers inside the working tree: same rule, one step quieter. */
+.section-head.sub {
+  padding: 6px var(--pad) 2px;
+}
+
+/* Actions are words, not coloured buttons (DESIGN-SYSTEM.md §9: a primary
+   action is brighter, not bluer). */
+.act {
+  flex: none;
+  color: var(--text-faint);
+  padding: 0 2px;
+  transition: color 120ms var(--ease);
+}
+.act:hover:not(:disabled) {
+  color: var(--text);
+}
+.act:disabled {
+  color: var(--text-ghost);
+  cursor: default;
+}
+.act.primary {
+  color: var(--text-dim);
+}
+.act.primary:hover:not(:disabled) {
+  color: var(--text);
+}
+
+/* The row verb stays hidden until hover: a column of buttons at this density
+   would be louder than the filenames it sits beside. */
+.status .verb {
+  flex: none;
+  opacity: 0;
+  transition: opacity 120ms var(--ease);
+}
+.status .row:hover .verb,
+.status .row:focus-visible .verb {
+  opacity: 1;
+}
+.status .row[data-busy='true'] {
+  cursor: default;
+}
+
+.commitbox {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad);
+  border-top: 1px solid var(--line);
+  flex: none;
+}
+.commitbox input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
 .status .dir {
   flex: 0 1 auto;
   min-width: 0;
