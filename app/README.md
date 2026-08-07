@@ -69,6 +69,12 @@ holding the user's SSH keys. So:
   the bundler.
 - **Electron's binary may not download on install.** If `npm start` fails with
   `Error: Electron uninstall`, run `node node_modules/electron/install.js`.
+- **Watch the port on Windows.** Hyper-V reserves several TCP ranges, and a
+  bind inside one fails with `EACCES` that reads like a permissions problem but
+  is not. Vite's preview default (4173) sits inside the reserved 4147–4246 on
+  this machine, which is the same reason the root config moved Tauri off 1420
+  to 7420. `dev:renderer` pins 5180 and binds `127.0.0.1` rather than `::1`.
+  Check a candidate with `netsh int ipv4 show excludedportrange protocol=tcp`.
 - Electron logs every rejected `ipcMain.handle` to stderr. Expected errors — a
   path that isn't a repository, say — will show up there even though the
   renderer handled them correctly.

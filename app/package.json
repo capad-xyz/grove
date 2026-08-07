@@ -10,6 +10,7 @@
   "scripts": {
     "predev": "npm --prefix ../engine run build",
     "dev": "electron-vite dev",
+    "dev:renderer": "vite src/renderer --host 127.0.0.1 --port 5180 --strictPort",
     "prebuild": "npm --prefix ../engine run build",
     "build": "electron-vite build",
     "start": "electron-vite preview",
