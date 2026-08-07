@@ -27,28 +27,39 @@ export const FIXTURE_REPO: RepoSummary = {
   head: 'reauthor',
 };
 
-export const FIXTURE_COMMITS: CommitNode[] = [
-  ['1bbab29', 'Shell: add a browser-previewable renderer dev server', 'capad.fyi', 0.4, ['reauthor']],
-  ['8a6a490', 'Shell: Electron main + hardened preload bridge (phase 3)', 'capad.fyi', 1.2, []],
-  ['a97c354', 'Engine: port the git engine to Node/TypeScript (phase 1)', 'capad.fyi', 3.5, []],
-  ['b030f34', 'docs: add RUNBOOK with setup, startup fixes, and deploy steps', 'capad.fyi', 26, []],
-  ['3ae9317', 'Engine: cheap heavy-repo wins', 'capad.fyi', 28, []],
-  ['c41d0a8', 'Engine: lock hardening at the git boundary', 'capad.fyi', 30, []],
-  ['9f2b117', 'Engine: refresh coordinator with typed events', 'capad.fyi', 33, []],
-  ['5ec8d40', 'Worktrees: ahead/behind and dirty state per tree', 'capad.fyi', 49, []],
-  ['77a1c93', 'Spotlight: search commits by hash, message, author', 'capad.fyi', 52, []],
-  ['2d9e6b1', 'Diff: wrap toggle and copy affordances', 'capad.fyi', 55, []],
-  ['ba30f77', 'chore: capad contact identity', 'capad.fyi', 72, ['main']],
-  ['e8c4a20', 'Graph: lane assignment in a single pass', 'capad.fyi', 74, []],
-].map(([id, summary, author, hoursAgo, refs]) => ({
-  id: (id as string).padEnd(40, '0'),
-  short: id as string,
-  parents: [],
-  author: author as string,
-  time: now - (hoursAgo as number) * HOUR,
-  refs: refs as string[],
-  summary: summary as string,
-}));
+const oid = (short: string) => short.padEnd(40, '0');
+
+/**
+ * Newest first. The `parents` column is what gives the graph something to
+ * draw: a merge at the top, a side branch that runs for three commits, and a
+ * linear tail — the shapes the lane algorithm actually has to get right.
+ */
+const COMMIT_ROWS: [string, string, number, string[], string[]][] = [
+  ['1bbab29', 'Shell: add a browser-previewable renderer dev server', 0.4, ['reauthor'], ['8a6a490', '3ae9317']],
+  ['8a6a490', 'Shell: Electron main + hardened preload bridge (phase 3)', 1.2, [], ['a97c354']],
+  ['a97c354', 'Engine: port the git engine to Node/TypeScript (phase 1)', 3.5, [], ['b030f34']],
+  ['3ae9317', 'Engine: cheap heavy-repo wins', 4, [], ['c41d0a8']],
+  ['b030f34', 'docs: add RUNBOOK with setup, startup fixes, and deploy steps', 26, [], ['9f2b117']],
+  ['c41d0a8', 'Engine: lock hardening at the git boundary', 30, [], ['9f2b117']],
+  ['9f2b117', 'Engine: refresh coordinator with typed events', 33, [], ['5ec8d40']],
+  ['5ec8d40', 'Worktrees: ahead/behind and dirty state per tree', 49, [], ['77a1c93']],
+  ['77a1c93', 'Spotlight: search commits by hash, message, author', 52, [], ['2d9e6b1']],
+  ['2d9e6b1', 'Diff: wrap toggle and copy affordances', 55, [], ['ba30f77']],
+  ['ba30f77', 'chore: capad contact identity', 72, ['main'], ['e8c4a20']],
+  ['e8c4a20', 'Graph: lane assignment in a single pass', 74, [], []],
+];
+
+export const FIXTURE_COMMITS: CommitNode[] = COMMIT_ROWS.map(
+  ([short, summary, hoursAgo, refs, parents]) => ({
+    id: oid(short),
+    short,
+    parents: parents.map(oid),
+    author: 'capad.fyi',
+    time: now - hoursAgo * HOUR,
+    refs,
+    summary,
+  }),
+);
 
 export const FIXTURE_STATUS: WorkingStatus = {
   branch: 'reauthor',

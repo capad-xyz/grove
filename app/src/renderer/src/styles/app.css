@@ -273,6 +273,34 @@
   background: var(--line);
 }
 
+/* --- Commit graph gutter -------------------------------------------------
+   Structure, not content, so it stays greyscale — a coloured graph would
+   compete with the diff, which is the only thing allowed to be loud. The row
+   has no horizontal padding on this side so lanes meet the rows above and
+   below exactly. */
+.commit .graph {
+  flex: none;
+  margin-left: calc(var(--pad) * -1);
+  display: block;
+}
+.g-line {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  fill: none;
+}
+.g-node {
+  fill: var(--text-faint);
+  stroke: var(--bg);
+  stroke-width: 1.5;
+}
+/* A commit that arrived while you were away reads brighter, same as its text. */
+.g-node-new {
+  fill: var(--text);
+}
+.commit[data-selected='true'] .g-node {
+  fill: var(--text);
+}
+
 .commit .sha {
   color: var(--text-faint);
   font-size: var(--fs-meta);

@@ -3,7 +3,22 @@
  * everything above "since you last looked" arrived while you were away.
  */
 
+import { useMemo } from 'react';
+
 import type { CommitNode } from '@grove/engine';
+
+import { graphWidth, layoutGraph } from '../data/graph';
+import { GraphGutter } from './GraphGutter';
+
+/** Matches --row in tokens.css; the gutter has to draw to the row's edges. */
+const ROW_H = 24;
+
+/**
+ * Beyond this the gutter would eat the pane in a docked strip, and a history
+ * that wide is not readable as lanes anyway. Wider layouts still compute
+ * correctly — only the drawing is clamped.
+ */
+const MAX_LANES = 7;
 
 /** Compact relative time. Density matters more here than precision. */
 export function ago(epochSeconds: number, now = Date.now() / 1000): string {
@@ -30,6 +45,9 @@ export function Commits({
   selected: string | null;
   onSelect: (oid: string) => void;
 }) {
+  const graph = useMemo(() => layoutGraph(commits), [commits]);
+  const lanes = useMemo(() => Math.min(graphWidth(graph), MAX_LANES), [graph]);
+
   if (commits.length === 0) {
     return <div className="empty">No commits yet.</div>;
   }
@@ -66,6 +84,9 @@ export function Commits({
           }
         }}
       >
+        {graph[i] && (
+          <GraphGutter row={graph[i]!} width={lanes} height={ROW_H} isNew={i < newCount} />
+        )}
         <span className="sha">{c.short}</span>
         <span className="msg" title={c.summary}>
           {c.summary}
