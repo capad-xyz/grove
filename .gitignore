@@ -5,13 +5,13 @@ out/
 .svelte-kit/
 build/
 
-# Packaged desktop builds (electron-builder)
-release/
-release-check/
 *.local
 .env
 .env.*
 !.env.example
+
+# Packaged desktop builds (electron-builder)
+release*/
 
 # Rust / Tauri
 target/
