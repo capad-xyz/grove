@@ -12,19 +12,32 @@ export function RepoBar({
   repo,
   dirty,
   live,
+  busy,
+  onBack,
 }: {
   repo: RepoSummary | null;
   dirty: boolean;
   live: boolean;
+  busy?: boolean;
+  onBack?: () => void;
 }) {
   const name = repo?.workdir?.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? 'grove';
 
   return (
     <header className="repobar">
+      {onBack && (
+        <button className="back" onClick={onBack} title="Open another repository">
+          ←
+        </button>
+      )}
       <span className="name">{name}</span>
       <span className="branch">{repo?.head ?? '(detached)'}</span>
       {dirty && <span className="dirty-dot" title="uncommitted changes" />}
       <span className="spacer" />
+      {/* Refresh is ambient and constant, so this is a word rather than a
+          spinner — a spinner every time an agent touches the repo would
+          strobe (DESIGN-SYSTEM.md §9). */}
+      {busy && <span className="label">loading</span>}
       {/* Browser mode is not a normal state; say so rather than quietly lying
           about which repository is on screen. */}
       {!live && <span className="mode">fixtures</span>}

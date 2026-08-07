@@ -6,6 +6,9 @@
     "moduleResolution": "bundler",
     "types": [],
     "jsx": "react-jsx",
+    // Tests import with an explicit `.ts` so Node can run them directly off the
+    // source via type-stripping; app code stays extensionless for Vite.
+    "allowImportingTsExtensions": true,
 
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -17,5 +20,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx", "src/shared/**/*.ts"]
+  "include": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx", "src/shared/**/*.ts"],
+  // Typechecked by tsconfig.test.json instead, which is the only config here
+  // that hands out Node types.
+  "exclude": ["src/renderer/**/*.test.ts"]
 }

@@ -8,7 +8,14 @@
  * history, so layouts are exercised against realistic string lengths.
  */
 
-import type { CommitNode, RepoSummary, WorkingStatus, Worktree } from '@grove/engine';
+import type {
+  CommitNode,
+  DirListing,
+  RecentRepo,
+  RepoSummary,
+  WorkingStatus,
+  Worktree,
+} from '@grove/engine';
 
 const HOUR = 3600;
 const now = 1786120000;
@@ -88,6 +95,28 @@ export const FIXTURE_WORKTREES: Worktree[] = [
     has_upstream: true,
   },
 ];
+
+export const FIXTURE_RECENTS: RecentRepo[] = [
+  { path: 'C:/Users/capad/Desktop/Grove', name: 'Grove' },
+  { path: 'C:/Users/capad/Desktop/capad-portfolio', name: 'capad-portfolio' },
+  { path: 'C:/Users/capad/Desktop/grove-agent-1', name: 'grove-agent-1' },
+];
+
+export const FIXTURE_DIR: DirListing = {
+  current: 'C:/Users/capad/Desktop',
+  parent: 'C:/Users/capad',
+  entries: [
+    { name: 'Grove', path: 'C:/Users/capad/Desktop/Grove', is_dir: true, is_repo: true },
+    {
+      name: 'capad-portfolio',
+      path: 'C:/Users/capad/Desktop/capad-portfolio',
+      is_dir: true,
+      is_repo: true,
+    },
+    { name: 'notes', path: 'C:/Users/capad/Desktop/notes', is_dir: true, is_repo: false },
+    { name: 'screenshots', path: 'C:/Users/capad/Desktop/screenshots', is_dir: true, is_repo: false },
+  ],
+};
 
 export const FIXTURE_DIFF = `diff --git a/engine/src/read.ts b/engine/src/read.ts
 @@ -14,9 +14,11 @@ import { gitRead, gitReadOr } from './git.ts';

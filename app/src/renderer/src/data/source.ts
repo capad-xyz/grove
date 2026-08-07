@@ -10,6 +10,8 @@
 
 import type {
   CommitNode,
+  DirListing,
+  RecentRepo,
   RepoEventEnvelope,
   RepoSummary,
   WorkingStatus,
@@ -19,6 +21,8 @@ import type {
 import {
   FIXTURE_COMMITS,
   FIXTURE_DIFF,
+  FIXTURE_DIR,
+  FIXTURE_RECENTS,
   FIXTURE_REPO,
   FIXTURE_STATUS,
   FIXTURE_WORKTREES,
@@ -34,6 +38,13 @@ export interface Source {
   commitDiff(path: string, oid: string): Promise<string>;
   onEvent(listener: (e: RepoEventEnvelope) => void): () => void;
   watch(path: string): Promise<void>;
+  unwatch(): Promise<void>;
+
+  // --- Choosing a repository ---
+  recents(): Promise<RecentRepo[]>;
+  remember(path: string, name: string): Promise<RecentRepo[]>;
+  listDir(path: string): Promise<DirListing>;
+  clone(url: string): Promise<string>;
 }
 
 const liveSource = (): Source => ({
@@ -55,6 +66,12 @@ const liveSource = (): Source => ({
   },
   onEvent: (l) => window.grove.onRepoEvent(l),
   watch: (p) => window.grove.watchRepo(p),
+  unwatch: () => window.grove.unwatchRepo(),
+
+  recents: () => window.grove.recentRepos(),
+  remember: (p, name) => window.grove.addRecentRepo(p, name),
+  listDir: (p) => window.grove.listDir(p),
+  clone: (url) => window.grove.cloneRepo(url),
 });
 
 /** Fixture-backed source with a small delay, so loading states are real. */
@@ -72,6 +89,12 @@ const fixtureSource = (): Source => {
     commitDiff: () => wait(FIXTURE_DIFF),
     onEvent: () => () => {},
     watch: () => wait(undefined),
+    unwatch: () => wait(undefined),
+
+    recents: () => wait(FIXTURE_RECENTS),
+    remember: () => wait(FIXTURE_RECENTS),
+    listDir: () => wait(FIXTURE_DIR),
+    clone: () => Promise.reject(new Error('Cloning needs the desktop app.')),
   };
 };
 
@@ -80,29 +103,5 @@ export const source: Source =
     ? liveSource()
     : fixtureSource();
 
-/**
- * Grove's actual superpower: what changed since you last looked.
- *
- * We remember the newest commit the user has seen per repo. Anything above it
- * is "new". Stored in localStorage rather than app state so closing the window
- * and coming back tomorrow still answers the question correctly.
- */
-const SEEN_KEY = 'grove:last-seen';
-
-export function lastSeen(repo: string): string | null {
-  try {
-    return JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}')[repo] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function markSeen(repo: string, sha: string): void {
-  try {
-    const all = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}');
-    all[repo] = sha;
-    localStorage.setItem(SEEN_KEY, JSON.stringify(all));
-  } catch {
-    // A browser with storage disabled just loses the marker; not fatal.
-  }
-}
+// The "since you last looked" mark and its arithmetic live in ./seen.ts, kept
+// separate so they can be tested without a DOM.

@@ -1,0 +1,15 @@
+// Renderer tests run under Node, so they need Node types — but the renderer
+// itself must not have them. Widening tsconfig.web.json would let app code
+// reach for `process` or `require` and still typecheck, which is exactly the
+// mistake the sandbox exists to prevent. So the tests get their own config and
+// the app config excludes them.
+{
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  // `extends` inherits tsconfig.web.json's exclude, which would cancel the
+  // include below and leave this project with no inputs at all.
+  "exclude": [],
+  "include": ["src/renderer/**/*.test.ts"]
+}

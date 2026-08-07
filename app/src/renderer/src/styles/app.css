@@ -40,6 +40,14 @@
 .repobar .spacer {
   flex: 1;
 }
+.repobar .back {
+  color: var(--text-faint);
+  padding: 0 2px;
+  flex: none;
+}
+.repobar .back:hover {
+  color: var(--text);
+}
 .repobar .mode {
   font-size: var(--fs-label);
   letter-spacing: 0.07em;
@@ -90,6 +98,131 @@
 }
 .wt .ab {
   color: var(--text-faint);
+}
+
+/* --- "While you were away" ------------------------------------------------
+   The single moment the accent is spent outside a diff. It is the brightest
+   thing on screen because it is the one question Grove exists to answer. */
+
+.away {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
+  height: var(--row-lg);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-align: left;
+  flex: none;
+  transition: background-color 120ms var(--ease);
+}
+.away:hover {
+  background: var(--surface-raised);
+}
+.away .away-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Home: choosing a repository ----------------------------------------- */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.home-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.home-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border-bottom: 1px solid var(--line);
+}
+.home-col:last-child {
+  border-bottom: 0;
+}
+
+@container app (min-width: 700px) {
+  .home-body {
+    flex-direction: row;
+  }
+  .home-col {
+    border-bottom: 0;
+    border-right: 1px solid var(--line);
+  }
+  .home-col:last-child {
+    border-right: 0;
+  }
+}
+
+.entry .base {
+  color: var(--text-dim);
+  flex: none;
+}
+.entry:hover .base {
+  color: var(--text);
+}
+.entry .dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+.entry[data-repo='true'] .base {
+  color: var(--text);
+}
+
+.section-head .crumb {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.home-clone {
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad);
+  flex: none;
+}
+.home-clone input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
+.home-clone button {
+  flex: none;
+  padding: 0 var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+.home-clone button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.home-clone button:disabled {
+  color: var(--text-ghost);
+  cursor: default;
 }
 
 /* --- Body: one column narrow, two panes wide ----------------------------- */

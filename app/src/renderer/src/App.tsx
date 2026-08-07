@@ -13,17 +13,25 @@ import type { CommitNode, RepoSummary, WorkingStatus, Worktree } from '@grove/en
 
 import { Commits } from './components/Commits';
 import { Diff } from './components/Diff';
+import { Home, nameOf } from './components/Home';
 import { RepoBar, Status, Worktrees } from './components/Chrome';
-import { lastSeen, markSeen, source } from './data/source';
+import { source } from './data/source';
+import {
+  fileCount,
+  isAway,
+  lastSeen,
+  markSeen,
+  measureAway,
+  type Away,
+  type SeenMark,
+} from './data/seen';
 
 import './styles/tokens.css';
 import './styles/base.css';
 import './styles/app.css';
 
-/** Where to open on launch. Electron passes a real repo; fixtures ignore it. */
-const INITIAL_REPO = 'C:/Users/Aadarsh Upadhyay/Desktop/Grove';
-
 export default function App() {
+  const [path, setPath] = useState<string | null>(null);
   const [repo, setRepo] = useState<RepoSummary | null>(null);
   const [commits, setCommits] = useState<CommitNode[]>([]);
   const [status, setStatus] = useState<WorkingStatus | null>(null);
@@ -31,66 +39,77 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [patch, setPatch] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   /**
-   * How many leading commits arrived since the user last looked. Captured once
-   * per repo load and held steady — if it recomputed as commits streamed in,
-   * the boundary would creep down the list while the user was reading it.
+   * How many leading commits arrived since the user last looked. Recomputed
+   * only when the window regains focus — if it tracked live it would creep down
+   * the list while the user was reading it, which is the one thing §7 forbids.
    */
   const [newCount, setNewCount] = useState(0);
-  const seenRef = useRef<string | null>(null);
+  const [away, setAway] = useState<Away | null>(null);
 
-  const path = repo?.workdir ?? INITIAL_REPO;
+  // Refs so the blur handler reads current values without re-subscribing.
+  const pathRef = useRef<string | null>(null);
+  const commitsRef = useRef<CommitNode[]>([]);
+  const statusRef = useRef<WorkingStatus | null>(null);
+  pathRef.current = path;
+  commitsRef.current = commits;
+  statusRef.current = status;
 
-  // --- Initial load -------------------------------------------------------
-  useEffect(() => {
-    let cancelled = false;
+  // --- Open a repository --------------------------------------------------
+  const openRepo = useCallback(
+    async (target: string) => {
+      setLoading(true);
+      setError(null);
+      setSelected(null);
+      setPatch(null);
+      setAway(null);
 
-    (async () => {
       try {
         const [summary, log, st, wt] = await Promise.all([
-          source.open(INITIAL_REPO),
-          source.commits(INITIAL_REPO, 200),
-          source.status(INITIAL_REPO),
-          source.worktrees(INITIAL_REPO),
+          source.open(target),
+          source.commits(target, 200),
+          source.status(target),
+          source.worktrees(target),
         ]);
-        if (cancelled) return;
 
-        // Fixtures mode is a design harness, so the marker is always seeded a
-        // few commits down and never persisted — otherwise the first load
-        // marks everything seen and the boundary can never be reviewed again.
-        // Live mode reads the real marker and never fabricates one; an invented
-        // marker would lie about what the user has actually seen.
-        seenRef.current = source.live ? lastSeen(INITIAL_REPO) : (log[3]?.id ?? null);
+        // Fixtures mode seeds a mark so the boundary can be reviewed at all;
+        // live mode reads the real one and never fabricates it, because an
+        // invented mark would lie about what the user has actually seen.
+        const mark: SeenMark | null = source.live
+          ? lastSeen(target)
+          : { sha: log[3]?.id ?? null, files: 0 };
 
-        const idx = log.findIndex((c) => c.id === seenRef.current);
-        // No marker yet (first ever open) means nothing is "new" — flagging the
-        // entire history as unseen would be technically true and useless.
-        setNewCount(seenRef.current === null ? 0 : idx === -1 ? log.length : idx);
+        const delta = measureAway(mark, log, st);
+        setNewCount(delta.commits);
+        setAway(isAway(delta) ? delta : null);
 
+        setPath(target);
         setRepo(summary);
         setCommits(log);
         setStatus(st);
         setWorktrees(wt);
 
         if (source.live) {
-          if (log[0]) markSeen(INITIAL_REPO, log[0].id);
-          void source.watch(INITIAL_REPO);
+          void source.remember(target, nameOf(target));
+          void source.watch(target);
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        setError(e instanceof Error ? e.message : String(e));
+        setPath(null);
+      } finally {
+        setLoading(false);
       }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    },
+    [],
+  );
 
   // --- Live refresh from the coordinator ----------------------------------
   useEffect(
     () =>
       source.onEvent((event) => {
+        if (pathRef.current === null) return;
         switch (event.kind) {
           case 'graph_changed':
             setCommits(event.commits);
@@ -109,9 +128,40 @@ export default function App() {
     [],
   );
 
+  // --- "Since you last looked" is literally that: since this window last had
+  //     focus. Written on blur, read on focus. -----------------------------
+  useEffect(() => {
+    const onBlur = () => {
+      const p = pathRef.current;
+      if (!p || !source.live) return;
+      // Everything on screen when you looked away is, by definition, seen.
+      markSeen(p, {
+        sha: commitsRef.current[0]?.id ?? null,
+        files: fileCount(statusRef.current),
+      });
+      setAway(null);
+    };
+
+    const onFocus = () => {
+      const p = pathRef.current;
+      if (!p || !source.live) return;
+      const delta = measureAway(lastSeen(p), commitsRef.current, statusRef.current);
+      setNewCount(delta.commits);
+      setAway(isAway(delta) ? delta : null);
+    };
+
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
   // --- Diff for the selected commit ---------------------------------------
   const selectCommit = useCallback(
     (oid: string) => {
+      if (!path) return;
       setSelected(oid);
       setPatch(null);
       source
@@ -127,18 +177,54 @@ export default function App() {
     return c ? `${c.short}  ${c.summary}` : 'diff';
   }, [commits, selected]);
 
-  const dirty = Boolean(
-    status && (status.staged.length || status.unstaged.length || status.untracked.length),
-  );
+  if (path === null) {
+    return (
+      <div className="app">
+        {error && (
+          <div className="empty" role="alert">
+            {error}
+          </div>
+        )}
+        <Home onOpen={(p) => void openRepo(p)} />
+      </div>
+    );
+  }
 
-  const diffPane = (
-    <Diff patch={selected ? patch : null} title={selected ? title : 'diff'} />
-  );
+  const dirty = fileCount(status) > 0;
 
   return (
     <div className="app">
-      <RepoBar repo={repo} dirty={dirty} live={source.live} />
+      <RepoBar
+        repo={repo}
+        dirty={dirty}
+        live={source.live}
+        busy={loading}
+        onBack={() => {
+          setPath(null);
+          setRepo(null);
+          setCommits([]);
+          setStatus(null);
+          setWorktrees([]);
+          setSelected(null);
+          void source.unwatch();
+        }}
+      />
       <Worktrees worktrees={worktrees} />
+
+      {/* The one moment the accent earns its keep. Dismissed by acknowledging
+          it, and cleared automatically the next time focus is lost. */}
+      {away && (
+        <button className="away" onClick={() => setAway(null)}>
+          <span className="away-text">
+            {away.commits > 0 &&
+              `${away.commits} commit${away.commits === 1 ? '' : 's'}`}
+            {away.commits > 0 && away.files > 0 && ' · '}
+            {away.files > 0 && `${away.files} more file${away.files === 1 ? '' : 's'} changed`}
+            {' while you were away'}
+          </span>
+          <span className="label">dismiss</span>
+        </button>
+      )}
 
       {error && (
         <div className="empty" role="alert">
@@ -162,7 +248,9 @@ export default function App() {
           </div>
         </div>
 
-        <div className="pane-diff">{diffPane}</div>
+        <div className="pane-diff">
+          <Diff patch={selected ? patch : null} title={selected ? title : 'diff'} />
+        </div>
       </div>
 
       <Status status={status} />

@@ -188,6 +188,14 @@ purely to have one would have invented brand language the brand does not use.
 --accent-soft: rgba(241, 240, 236, .10)
 ```
 
+**"Last looked" means the last time the window had focus**, not the last time it
+was open. That is the literal reading of the phrase and the useful one: you turn
+to your editor, an agent works, you turn back, and the question is what happened
+in the gap. So the mark is written on blur — everything on screen when you
+looked away is by definition seen — and read on focus. The count is frozen while
+the window is focused; a boundary that crept down the list while you were
+reading it would violate §7.
+
 The marker signals by being **the single brightest thing on screen** — every
 other label sits at `--text-faint`, so the boundary reads as emphatic without
 spending a hue. This has a second benefit the coloured options did not: with no
