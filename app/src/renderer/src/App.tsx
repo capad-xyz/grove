@@ -65,6 +65,8 @@ export default function App() {
    * closes, and the list stays filtered until you clear it.
    */
   const [filter, setFilter] = useState<Filter>(null);
+  /** Guards the one-time search-input fetch per repo. */
+  const searchLoaded = useRef(false);
 
   // Refs so the blur handler reads current values without re-subscribing.
   const pathRef = useRef<string | null>(null);
@@ -94,18 +96,12 @@ export default function App() {
           source.worktrees(target),
         ]);
 
-        // Search inputs, fetched once per repo. The file list is the expensive
-        // one — `allFiles` walks history — so it is deliberately not awaited
-        // with the rest: the repo renders immediately and Spotlight fills in a
-        // moment later, rather than the whole app waiting on it.
-        void source
-          .branches(target)
-          .then(setBranches)
-          .catch(() => setBranches([]));
-        void source
-          .files(target)
-          .then((f) => setFileIndex(indexFiles(f)))
-          .catch(() => setFileIndex([]));
+        // Search inputs are NOT fetched here. `allFiles` walks the entire
+        // history — measured at 250-500ms on small repos and unbounded on big
+        // ones — and most repo opens never open Spotlight at all. Loading it
+        // eagerly spent that on every open for nothing. It is fetched on first
+        // use instead; see `openSpotlight`.
+        searchLoaded.current = false;
 
         // Fixtures mode seeds a mark so the boundary can be reviewed at all;
         // live mode reads the real one and never fabricates it, because an
@@ -224,6 +220,28 @@ export default function App() {
     [path, write],
   );
 
+  /**
+   * Open Spotlight, fetching its inputs the first time per repo. The palette
+   * renders immediately and the file group fills in when the index lands —
+   * which is the right trade, because commits and content are debounced behind
+   * a keystroke anyway and nobody picks a file before typing.
+   */
+  const openSpotlight = useCallback(() => {
+    setSpotlight(true);
+    const target = pathRef.current;
+    if (!target || searchLoaded.current) return;
+    searchLoaded.current = true;
+
+    void source
+      .branches(target)
+      .then(setBranches)
+      .catch(() => setBranches([]));
+    void source
+      .files(target)
+      .then((f) => setFileIndex(indexFiles(f)))
+      .catch(() => setFileIndex([]));
+  }, []);
+
   // --- Applying a Spotlight result -----------------------------------------
   // Everything resolves into the commit list or the diff; nothing opens a
   // surface that does not already exist.
@@ -286,7 +304,7 @@ export default function App() {
       // gesture and there is nothing else it could mean.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setSpotlight(true);
+        openSpotlight();
         return;
       }
 
@@ -296,7 +314,7 @@ export default function App() {
       // `/` is the vim-ish search gesture, and matches the placeholder's promise.
       if (e.key === '/') {
         e.preventDefault();
-        setSpotlight(true);
+        openSpotlight();
         return;
       }
 

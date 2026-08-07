@@ -126,6 +126,25 @@ export async function commitDetail(path: string, oid: string): Promise<CommitDet
 }
 
 /**
+ * Unified diff for an entire commit, in a single git invocation.
+ *
+ * The renderer previously built this by asking for one diff per changed file
+ * and concatenating. That cost two subprocesses per file — measured at 913ms
+ * and ~43 spawns for a 21-file commit, against 106ms for this. Worse than the
+ * latency, those spawns land concurrently on the main process and stall every
+ * other IPC reply behind them, which is what made clicking a commit freeze the
+ * window.
+ *
+ * `show --first-parent` is what keeps the output identical to the old path:
+ * merges diff against their first parent rather than emitting an empty
+ * combined diff, and `--root` behaviour is implicit, so the first commit in a
+ * repository still renders as all additions.
+ */
+export function commitDiff(path: string, oid: string): Promise<string> {
+  return gitRead(workdirOf(path), ['show', '--format=', '--patch', '--first-parent', oid]);
+}
+
+/**
  * The diff base for a commit: its first parent if it has one, otherwise git's
  * empty-tree object (so a root commit shows as all additions).
  */

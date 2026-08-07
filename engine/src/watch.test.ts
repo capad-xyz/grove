@@ -40,6 +40,23 @@ test('a lockfile anywhere under .git is ignored', () => {
   assert.equal(classify('/r/.git/config.lock'), 0);
 });
 
+test('git internals we always discard are never watched', () => {
+  // classify() scores all of these 0, so watching them is pure cost. objects/
+  // is the big one — the largest directory by file count in most repos.
+  assert.equal(isNoisyPath('/r/.git/objects'), true);
+  assert.equal(isNoisyPath('/r/.git/objects/ab/cdef'), true);
+  assert.equal(isNoisyPath('/r/.git/logs/HEAD'), true);
+  assert.equal(isNoisyPath(String.raw`C:\r\.git\objects\ab\cdef`), true);
+
+  // The ones we actually need events from must still be watched.
+  assert.equal(isNoisyPath('/r/.git/index'), false);
+  assert.equal(isNoisyPath('/r/.git/HEAD'), false);
+  assert.equal(isNoisyPath('/r/.git/refs/heads/main'), false);
+  assert.equal(isNoisyPath('/r/.git/worktrees/wt1/HEAD'), false);
+  // A source directory that merely shares a name is not git internals.
+  assert.equal(isNoisyPath('/r/src/objects/model.ts'), false);
+});
+
 test('noisy directories are skipped before descending', () => {
   assert.equal(isNoisyPath('/r/node_modules'), true);
   assert.equal(isNoisyPath('/r/node_modules/pkg/index.js'), true);

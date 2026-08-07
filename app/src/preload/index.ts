@@ -19,6 +19,7 @@ const api: GroveApi = {
     ipcRenderer.invoke(CHANNELS.commitGraph, path, limit, refspec),
   branches: (path) => ipcRenderer.invoke(CHANNELS.branches, path),
   commitDetail: (path, oid) => ipcRenderer.invoke(CHANNELS.commitDetail, path, oid),
+  commitDiff: (path, oid) => ipcRenderer.invoke(CHANNELS.commitDiff, path, oid),
   fileDiff: (path, oid, file) => ipcRenderer.invoke(CHANNELS.fileDiff, path, oid, file),
   fileDiffBetween: (path, a, b, file) =>
     ipcRenderer.invoke(CHANNELS.fileDiffBetween, path, a, b, file),

@@ -21,6 +21,7 @@ export {
   graph,
   branches,
   commitDetail,
+  commitDiff,
   fileDiff,
   fileDiffBetween,
   fileAt,

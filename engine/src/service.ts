@@ -40,6 +40,20 @@ export type EmitFn = (event: RepoEventEnvelope) => void;
 const QUIET_MS = 80;
 const MAX_COALESCE_MS = 350;
 
+/**
+ * After a cycle, rest for as long as that cycle took, capped.
+ *
+ * Coalescing bounds how often we *start* a cycle but not what a cycle costs, so
+ * under sustained churn — an editor saving, an agent writing, a build running —
+ * the coordinator would run back-to-back `git status` calls and sit at roughly
+ * half a core indefinitely. Resting proportionally caps it near 50% duty while
+ * costing a lone user action almost nothing: staging a file runs a ~150ms cycle
+ * and rests 150ms, which nobody perceives.
+ */
+const MAX_COOLDOWN_MS = 1000;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 type RecvResult = { kind: 'value'; bits: number } | { kind: 'timeout' } | { kind: 'closed' };
 
 /**
@@ -158,7 +172,13 @@ async function coordinator(root: string, ch: Channel, emit: EmitFn): Promise<voi
     }
 
     gen += 1;
+    const cycleStart = Date.now();
     await runCycle(root, bits, gen, cache, emit);
+
+    // Invalidations that arrive during this rest are still queued and start the
+    // next cycle the moment it ends, so nothing is lost — only paced.
+    const cost = Date.now() - cycleStart;
+    if (cost > 0) await sleep(Math.min(cost, MAX_COOLDOWN_MS));
     // Invalidations that arrived mid-cycle are still queued and start the next
     // cycle immediately, so nothing is ever lost — only coalesced.
   }

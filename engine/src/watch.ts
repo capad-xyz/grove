@@ -17,14 +17,27 @@ import { INV_INDEX, INV_REFS, INV_WORKDIR, INV_WORKTREES } from './types.ts';
  * listing them here lets chokidar skip descending into them at all — on a repo
  * with a populated `node_modules` that is the difference between watching a
  * few thousand paths and a few hundred thousand.
+ *
+ * This is a fixed list rather than the repo's own .gitignore, which is the
+ * honest limitation: a tracked file inside a directory named like one of these
+ * will not trigger a live refresh, though it still appears in status on the
+ * next cycle. Reading .gitignore properly means honouring nested files, the
+ * global excludes file, and .git/info/exclude, and doing it per path during a
+ * synchronous traversal — worth doing, but not worth guessing at here.
  */
 const NOISY_DIRS = [
   'node_modules',
   'target',
   'dist',
   'build',
+  'out',
+  'release',
+  'coverage',
   '.svelte-kit',
   '.next',
+  '.turbo',
+  '__pycache__',
+  '.venv',
 ] as const;
 
 /** Map one event path to invalidation bits (0 = noise, ignore). */
@@ -53,10 +66,25 @@ export function classify(path: string): number {
   return INV_WORKDIR;
 }
 
+/**
+ * Subtrees of `.git` that `classify` always scores as noise, so watching them
+ * is pure cost. `objects/` is the one that matters: it is the largest directory
+ * in most repositories by file count, and on a big history it is tens of
+ * thousands of paths the watcher would otherwise stat and hold handles on for
+ * events we discard on arrival.
+ */
+const GIT_NOISE = ['objects', 'logs', 'lfs', 'modules'] as const;
+
 /** True if chokidar should not descend into this path at all. */
 export function isNoisyPath(path: string): boolean {
   const s = path.replace(/\\/g, '/');
   for (const d of NOISY_DIRS) if (s.endsWith(`/${d}`) || s.includes(`/${d}/`)) return true;
+
+  const g = s.indexOf('/.git/');
+  if (g !== -1) {
+    const rest = s.slice(g + 6);
+    for (const d of GIT_NOISE) if (rest === d || rest.startsWith(`${d}/`)) return true;
+  }
   return false;
 }
 
