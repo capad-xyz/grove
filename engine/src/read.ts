@@ -414,6 +414,32 @@ export async function fileBytesAt(
   }
 }
 
+/**
+ * A working-tree file is capped before it is base64-encoded and sent across
+ * IPC. Encoding inflates by a third, and a 4K screenshot or a video would
+ * otherwise be turned into a tens-of-megabytes string and handed to the
+ * renderer, which is a freeze rather than a preview.
+ */
+export const MAX_PREVIEW_BYTES = 12 * 1024 * 1024;
+
+/**
+ * Raw bytes of a file as it exists on disk, base64-encoded. Null if it cannot
+ * be read or is larger than `MAX_PREVIEW_BYTES`.
+ *
+ * Separate from `workingFile` because that decodes as UTF-8, which turns a PNG
+ * into replacement characters — the same trap `fileBytesAt` exists to avoid on
+ * the committed side.
+ */
+export function workingFileBytes(path: string, file: string): string | null {
+  try {
+    const full = join(workdirOf(path), file);
+    if (statSync(full).size > MAX_PREVIEW_BYTES) return null;
+    return readFileSync(full).toString('base64');
+  } catch {
+    return null;
+  }
+}
+
 /** Per-line blame for a file at HEAD. */
 export async function blame(path: string, file: string): Promise<BlameLine[]> {
   const dir = workdirOf(path);

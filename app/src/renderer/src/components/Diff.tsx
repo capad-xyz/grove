@@ -7,7 +7,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { findMatches, segments, step } from '../data/find';
-import { base64Size, dataUri, imageFiles, markdownFiles, mimeFor } from '../data/images';
+import {
+  base64Size,
+  dataUri,
+  imageFiles,
+  isImage,
+  markdownFiles,
+  mimeFor,
+} from '../data/images';
 import { MarkdownPreview } from './Markdown';
 import { source } from '../data/source';
 
@@ -108,12 +115,106 @@ function ImagePair({
   );
 }
 
+/**
+ * Preview of a file as it exists in the working tree.
+ *
+ * Needed because `git diff` says nothing at all about an untracked file — no
+ * header, no body — so there is no patch to derive a preview from. Reading the
+ * file directly is the only way to show a newly added image or script, which is
+ * most of what an agent leaves behind.
+ */
+function WorkingPreview({ repoPath, file }: { repoPath: string; file: string }) {
+  const [before, setBefore] = useState<string | null>(null);
+  const [after, setAfter] = useState<string | null>(null);
+  const [text, setText] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const image = isImage(file);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDone(false);
+    setBefore(null);
+    setAfter(null);
+    setText(null);
+
+    const work = image
+      ? Promise.all([
+          // Absent for an untracked file, which is the normal case here.
+          source.fileBytesAt(repoPath, 'HEAD', file).catch(() => null),
+          source.workingFileBytes(repoPath, file).catch(() => null),
+        ]).then(([b, a]) => {
+          if (cancelled) return;
+          setBefore(b);
+          setAfter(a);
+        })
+      : source
+          .workingFile(repoPath, file)
+          .then((t) => !cancelled && setText(t))
+          .catch(() => !cancelled && setText(null));
+
+    void work.finally(() => !cancelled && setDone(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [repoPath, file, image]);
+
+  if (!done) return <div className="empty">…</div>;
+
+  if (image) {
+    const mime = mimeFor(file) ?? 'image/png';
+    const side = (label: string, b64: string | null, absent: string) => (
+      <div className="img-side">
+        <div className="label">
+          {label}
+          {b64 && <span className="img-size"> {base64Size(b64)}</span>}
+        </div>
+        {b64 ? (
+          <img src={dataUri(mime, b64)} alt={`${file} ${label}`} />
+        ) : (
+          <div className="empty">{absent}</div>
+        )}
+      </div>
+    );
+
+    return (
+      <div className="img-diff">
+        <div className="img-file">{file}</div>
+        <div className="img-pair">
+          {side('committed', before, 'not in HEAD — new file')}
+          {side('working', after, 'unreadable or over the preview size limit')}
+        </div>
+      </div>
+    );
+  }
+
+  if (text === null) {
+    return <div className="empty">This file cannot be shown as text.</div>;
+  }
+  if (text === '') {
+    return <div className="empty">Empty file.</div>;
+  }
+
+  return (
+    <div className="diff-body">
+      <div className="diff-lines">
+        {text.split('\n').map((line, i) => (
+          <div key={i} className="diff-line add">
+            {line === '' ? ' ' : `+${line}`}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Diff({
   patch,
   title,
   onClose,
   repoPath,
   oid,
+  working,
 }: {
   patch: string | null;
   title: string;
@@ -121,6 +222,8 @@ export function Diff({
   /** Both required to render image previews; without them the diff is text only. */
   repoPath?: string | null;
   oid?: string | null;
+  /** Set when previewing a working-tree file rather than a commit. */
+  working?: { path: string; staged: boolean } | null;
 }) {
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState('');
@@ -245,9 +348,14 @@ export function Diff({
         )}
       </div>
 
-      {patch === null ? (
+      {patch === null && !working ? (
         <div className="empty">Select a commit to see what changed.</div>
-      ) : patch.trim() === '' ? (
+      ) : /* An image is always worth showing directly, and an untracked file
+             has no patch to render at all — both go through the working
+             preview rather than the diff path. */
+      working && repoPath && (isImage(working.path) || (patch ?? '').trim() === '') ? (
+        <WorkingPreview repoPath={repoPath} file={working.path} />
+      ) : (patch ?? '').trim() === '' ? (
         <div className="empty">No textual changes.</div>
       ) : (
         <div className="diff-body" ref={bodyRef}>

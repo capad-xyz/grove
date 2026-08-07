@@ -50,6 +50,10 @@ export interface Source {
   fileAt(path: string, rev: string, file: string): Promise<string>;
   /** Diff of one working-tree file. `staged` selects the index side. */
   workingDiff(path: string, file: string, staged: boolean): Promise<string>;
+  /** Text of a working-tree file, for previewing something git has no diff for. */
+  workingFile(path: string, file: string): Promise<string>;
+  /** Base64 bytes of a working-tree file, or null if unreadable or too large. */
+  workingFileBytes(path: string, file: string): Promise<string | null>;
   onEvent(listener: (e: RepoEventEnvelope) => void): () => void;
   watch(path: string): Promise<void>;
   unwatch(): Promise<void>;
@@ -100,6 +104,8 @@ const liveSource = (): Source => ({
   fileBytesAt: (p, rev, file) => window.grove.fileBytesAt(p, rev, file),
   fileAt: (p, rev, file) => window.grove.fileAt(p, rev, file),
   workingDiff: (p, file, staged) => window.grove.workingDiff(p, file, staged),
+  workingFile: (p, file) => window.grove.workingFile(p, file),
+  workingFileBytes: (p, file) => window.grove.workingFileBytes(p, file),
   onEvent: (l) => window.grove.onRepoEvent(l),
   watch: (p) => window.grove.watchRepo(p),
   unwatch: () => window.grove.unwatchRepo(),
@@ -204,8 +210,17 @@ const fixtureSource = (): Source => {
     fileDiff: () => wait(FIXTURE_DIFF),
     // A 1x1 PNG: enough to prove the pipe renders without shipping an asset.
     fileAt: () => wait(FIXTURE_MARKDOWN),
-    workingDiff: (_p, file) => wait(FIXTURE_WORKING_DIFF.replace(/__FILE__/g, file)),
-    fileBytesAt: (_p, rev) => wait(rev.endsWith(String.fromCharCode(94)) ? null : FIXTURE_PNG),
+    // An untracked file has no diff at all — that is the case the preview has
+    // to handle, so the fixture models it.
+    workingDiff: (_p, file) =>
+      wait(file.startsWith("demo/") ? "" : FIXTURE_WORKING_DIFF.replace(/__FILE__/g, file)),
+    workingFile: () => wait(FIXTURE_MARKDOWN),
+    workingFileBytes: () => wait(FIXTURE_PNG),
+    // Null on the parent side, and null at HEAD for anything untracked —
+    // otherwise the harness shows a committed version of a file that has never
+    // been committed, and the "new file" state becomes untestable.
+    fileBytesAt: (_p, rev, file) =>
+      wait(rev.endsWith('^') || file.startsWith('demo/') ? null : FIXTURE_PNG),
     commitDiff: () => wait(FIXTURE_DIFF),
     onEvent: (l) => {
       listeners.add(l);

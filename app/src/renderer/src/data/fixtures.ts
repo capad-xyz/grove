@@ -98,7 +98,10 @@ export const FIXTURE_STATUS: WorkingStatus = {
     { path: 'src-tauri/Cargo.toml', status: 'M' },
     { path: 'app/DESIGN-SYSTEM.md', status: 'M' },
   ],
-  untracked: ['.coderabbit.yaml', 'AGENTS.md'],
+  // An untracked image and an untracked script, because `git diff` says nothing
+  // at all about either — no header, no body — and that is precisely the case
+  // the preview has to handle without a patch to work from.
+  untracked: ['.coderabbit.yaml', 'AGENTS.md', 'demo/bg_light_4k.png', 'demo/capture.sh'],
 };
 
 export const FIXTURE_WORKTREES: Worktree[] = [

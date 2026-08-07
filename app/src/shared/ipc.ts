@@ -43,6 +43,7 @@ export const CHANNELS = {
   workingStatus: 'grove:working-status',
   workingDiff: 'grove:working-diff',
   workingFile: 'grove:working-file',
+  workingFileBytes: 'grove:working-file-bytes',
   stagedDiff: 'grove:staged-diff',
   repoDirty: 'grove:repo-dirty',
   reposDirty: 'grove:repos-dirty',
@@ -104,6 +105,8 @@ export interface GroveApi {
   workingStatus(path: string): Promise<WorkingStatus>;
   workingDiff(path: string, file: string, staged: boolean): Promise<string>;
   workingFile(path: string, file: string): Promise<string>;
+  /** Base64 bytes of a working-tree file, or null if unreadable or too large. */
+  workingFileBytes(path: string, file: string): Promise<string | null>;
   stagedDiff(path: string): Promise<string>;
   repoDirty(path: string): Promise<boolean>;
   reposDirty(paths: string[]): Promise<Record<string, boolean>>;

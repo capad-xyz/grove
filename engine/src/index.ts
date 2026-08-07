@@ -38,6 +38,7 @@ export {
   workingStatus,
   workingDiff,
   workingFile,
+  workingFileBytes,
   isDirty,
   stagedDiff,
 } from './read.ts';

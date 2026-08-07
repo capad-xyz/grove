@@ -38,6 +38,7 @@ const api: GroveApi = {
   workingDiff: (path, file, staged) =>
     ipcRenderer.invoke(CHANNELS.workingDiff, path, file, staged),
   workingFile: (path, file) => ipcRenderer.invoke(CHANNELS.workingFile, path, file),
+  workingFileBytes: (path, file) => ipcRenderer.invoke(CHANNELS.workingFileBytes, path, file),
   stagedDiff: (path) => ipcRenderer.invoke(CHANNELS.stagedDiff, path),
   repoDirty: (path) => ipcRenderer.invoke(CHANNELS.repoDirty, path),
   reposDirty: (paths) => ipcRenderer.invoke(CHANNELS.reposDirty, paths),

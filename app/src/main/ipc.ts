@@ -99,6 +99,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     engine.workingDiff(path, file, staged),
   );
   handle(CHANNELS.workingFile, (path: string, file: string) => engine.workingFile(path, file));
+  handle(CHANNELS.workingFileBytes, (path: string, file: string) =>
+    engine.workingFileBytes(path, file),
+  );
   handle(CHANNELS.stagedDiff, (path: string) => engine.stagedDiff(path));
 
   handle(CHANNELS.repoDirty, async (path: string) => {

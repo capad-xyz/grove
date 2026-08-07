@@ -491,6 +491,7 @@ export default function App() {
             title={selected || viewingFile ? title : 'diff'}
             repoPath={path}
             oid={selected}
+            working={viewingFile}
           />
         </div>
       </div>
@@ -532,6 +533,7 @@ export default function App() {
             }}
             repoPath={path}
             oid={selected}
+            working={viewingFile}
           />
         </div>
       )}

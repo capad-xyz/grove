@@ -132,6 +132,24 @@ function checks(repo: string): Check[] {
         : (() => { throw new Error('refspec ignored: ' + main.length + ' vs ' + all.length) })())`,
     },
     {
+      name: 'workingFileBytes survives binary',
+      // The icon is a real PNG on disk. Decoding it as UTF-8 anywhere in the
+      // path would return replacement characters and a broken preview, so this
+      // checks the magic bytes actually made the round trip.
+      script: `window.grove.workingFileBytes(${r}, 'app/packaging/icon.png').then(b64 => {
+        if (!b64) throw new Error('no bytes returned');
+        const head = atob(b64.slice(0, 12));
+        const isPng = head.charCodeAt(0) === 0x89 && head.slice(1, 4) === 'PNG';
+        if (!isPng) throw new Error('not a PNG header: ' + JSON.stringify(head.slice(0, 8)));
+        return b64.length + ' base64 chars, PNG header intact';
+      })`,
+    },
+    {
+      name: 'workingFileBytes on a missing file returns null',
+      script: `window.grove.workingFileBytes(${r}, 'does/not/exist.png')
+        .then(b => b === null ? 'null' : (() => { throw new Error('expected null') })())`,
+    },
+    {
       name: 'watchRepo emits live coordinator events',
       script: `new Promise((resolve, reject) => {
         const seen = [];
