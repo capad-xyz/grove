@@ -11,5 +11,5 @@
   // `extends` inherits tsconfig.web.json's exclude, which would cancel the
   // include below and leave this project with no inputs at all.
   "exclude": [],
-  "include": ["src/renderer/**/*.test.ts"]
+  "include": ["src/**/*.test.ts"]
 }

@@ -15,7 +15,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { BrowserWindow } from 'electron';
+import { net, type BrowserWindow } from 'electron';
 
 interface Check {
   name: string;
@@ -241,6 +241,81 @@ function writeChecks(dir: string): Check[] {
   ];
 }
 
+/**
+ * Checks that run in **main**, against the `grove-file:` protocol directly.
+ *
+ * Not driven from the renderer: a `fetch` to a custom scheme is a `connect-src`
+ * request, and the CSP allows that scheme only for `img-src`/`media-src`. Main
+ * can call its own protocol without widening what page script is permitted to
+ * reach, which is the trade worth keeping.
+ */
+async function protocolChecks(
+  win: BrowserWindow,
+  repo: string,
+): Promise<{ name: string; ok: boolean; detail: string }[]> {
+  const out: { name: string; ok: boolean; detail: string }[] = [];
+  const record = (name: string, ok: boolean, detail: string) => out.push({ name, ok, detail });
+
+  // The handler only serves while a repo is watched, so establish one first.
+  await win.webContents.executeJavaScript(
+    `window.grove.watchRepo(${JSON.stringify(repo)})`,
+    true,
+  );
+
+  const url = 'grove-file://repo/app/packaging/icon.png';
+  try {
+    const full = await net.fetch(url);
+    const bytes = (await full.arrayBuffer()).byteLength;
+    record(
+      'protocol serves a working-tree file',
+      full.ok && bytes > 0,
+      `${full.status}, ${bytes} bytes`,
+    );
+    record(
+      'protocol advertises range support',
+      full.headers.get('Accept-Ranges') === 'bytes',
+      `Accept-Ranges: ${full.headers.get('Accept-Ranges')}`,
+    );
+
+    // The seek-backwards fix: a range request must come back 206 with the slice
+    // it asked for, not 200 with everything.
+    const part = await net.fetch(url, { headers: { Range: 'bytes=0-9' } });
+    const partBytes = (await part.arrayBuffer()).byteLength;
+    record(
+      'a range request returns exactly that range',
+      part.status === 206 && partBytes === 10,
+      `${part.status}, ${partBytes} bytes, ${part.headers.get('Content-Range')}`,
+    );
+
+    // Suffix ranges are how a media element reads a trailing index.
+    const tail = await net.fetch(url, { headers: { Range: 'bytes=-16' } });
+    record(
+      'a suffix range reads the end of the file',
+      tail.status === 206 && (await tail.arrayBuffer()).byteLength === 16,
+      `${tail.status}, ${tail.headers.get('Content-Range')}`,
+    );
+
+    const past = await net.fetch(url, { headers: { Range: 'bytes=99999999-' } });
+    record(
+      'an unsatisfiable range is refused, not silently filled',
+      past.status === 416,
+      `${past.status}`,
+    );
+
+    // Containment: the scheme must not become an arbitrary-read primitive.
+    // Percent-encoded, because the URL parser collapses a literal 
+    // before the handler ever sees it. The encoded form survives parsing and
+    // is what the containment check actually has to catch.
+    const escape = await net.fetch('grove-file://repo/%2e%2e%2f%2e%2e%2f%2e%2e%2fWindows/win.ini');
+    record('an encoded path traversal is refused', escape.status === 403, `${escape.status}`);
+  } catch (e) {
+    record('protocol checks', false, e instanceof Error ? e.message : String(e));
+  }
+
+  await win.webContents.executeJavaScript(`window.grove.unwatchRepo()`, true);
+  return out;
+}
+
 export async function runSmoke(win: BrowserWindow, repo: string): Promise<number> {
   process.stdout.write(`\n  smoke: driving window.grove against ${repo}\n\n`);
 
@@ -264,6 +339,11 @@ export async function runSmoke(win: BrowserWindow, repo: string): Promise<number
         `  FAIL  ${check.name.padEnd(38)} ${e instanceof Error ? e.message : String(e)}\n`,
       );
     }
+  }
+
+  for (const c of await protocolChecks(win, repo)) {
+    if (!c.ok) failed += 1;
+    process.stdout.write(`  ${c.ok ? 'PASS' : 'FAIL'}  ${c.name.padEnd(38)} ${c.detail}\n`);
   }
 
   if (scratch) {

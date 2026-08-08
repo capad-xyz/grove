@@ -23,5 +23,5 @@
   "include": ["src/renderer/**/*.ts", "src/renderer/**/*.tsx", "src/shared/**/*.ts"],
   // Typechecked by tsconfig.test.json instead, which is the only config here
   // that hands out Node types.
-  "exclude": ["src/renderer/**/*.test.ts"]
+  "exclude": ["src/**/*.test.ts"]
 }

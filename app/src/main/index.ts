@@ -9,14 +9,16 @@
  * the settings below are defaults worth relaxing for convenience.
  */
 
-import { join } from 'node:path';
-
-import { resolve, sep } from 'node:path';
+import { createReadStream, statSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { app, shell, BrowserWindow, Menu, net, protocol, session } from 'electron';
 
+import { parseRange } from '../shared/range';
+
 import { disposeIpc, registerIpc, watchedRoot } from './ipc';
+import { runSmoke } from './smoke';
 
 /**
  * A scheme for streaming working-tree files to the renderer.
@@ -34,7 +36,6 @@ protocol.registerSchemesAsPrivileged([
     privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
   },
 ]);
-import { runSmoke } from './smoke';
 
 /** Vite's dev server URL in `electron-vite dev`; undefined in a packaged app. */
 const DEV_URL = process.env['ELECTRON_RENDERER_URL'];
@@ -50,6 +51,7 @@ const SMOKE_REPO = SMOKE_ARG
   : null;
 
 let mainWindow: BrowserWindow | null = null;
+
 
 /**
  * Content-Security-Policy for the renderer.
@@ -218,9 +220,43 @@ void app.whenReady().then(() => {
       return new Response('outside the open repository', { status: 403 });
     }
 
-    // `net.fetch` on a file URL gives range requests for free, which is what
-    // lets a <video> seek instead of downloading the whole thing first.
-    return net.fetch(pathToFileURL(full).toString());
+    // Range requests are handled here rather than delegated. `net.fetch` on a
+    // file URL returns the whole body as a single 200 and advertises no
+    // `Accept-Ranges`, so a media element has no way to ask for an earlier
+    // offset — playback works and seeking backwards does not.
+    let size: number;
+    try {
+      size = statSync(full).size;
+    } catch {
+      return new Response('not found', { status: 404 });
+    }
+
+    const range = parseRange(request.headers.get('Range'), size);
+    if (range === 'unsatisfiable') {
+      return new Response('range not satisfiable', {
+        status: 416,
+        headers: { 'Content-Range': `bytes */${size}`, 'Accept-Ranges': 'bytes' },
+      });
+    }
+
+    if (range === null) {
+      const whole = await net.fetch(pathToFileURL(full).toString());
+      const headers = new Headers(whole.headers);
+      headers.set('Accept-Ranges', 'bytes');
+      return new Response(whole.body, { status: 200, headers });
+    }
+
+    // A stream, not a buffer: a seek into a 400MB video must not read 400MB.
+    const { start, end } = range;
+    const stream = createReadStream(full, { start, end }) as unknown as ReadableStream;
+    return new Response(stream, {
+      status: 206,
+      headers: {
+        'Content-Range': `bytes ${start}-${end}/${size}`,
+        'Content-Length': String(end - start + 1),
+        'Accept-Ranges': 'bytes',
+      },
+    });
   });
 
   hardenWebContents();

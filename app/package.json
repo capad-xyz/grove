@@ -16,7 +16,7 @@
     "start": "electron-vite preview",
     "smoke": "electron-vite build && electron . --smoke",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
-    "test": "node --test \"src/renderer/src/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\"",
     "check": "npm run typecheck && npm test",
     "package:dir": "npm run build && electron-builder --dir",
     "package": "npm run build && electron-builder",
