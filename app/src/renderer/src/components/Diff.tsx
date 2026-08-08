@@ -266,6 +266,7 @@ export function Diff({
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState('');
   const [at, setAt] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   const bodyRef = useRef<HTMLDivElement>(null);
   const findRef = useRef<HTMLInputElement>(null);
@@ -283,6 +284,21 @@ export function Diff({
     setFinding(false);
     setQuery('');
   }, []);
+
+  // Copies the patch as git wrote it, not as the pane rendered it.
+  //
+  // Selecting the diff by hand is the obvious way to do this and it is about to
+  // stop working: once the body is windowed, only the rows near the viewport
+  // exist, so Ctrl+A reaches a few dozen lines of a file that has thousands.
+  // This is the replacement, and it is a better answer anyway — the clipboard
+  // gets a patch that `git apply` will accept.
+  const copyPatch = useCallback(() => {
+    if (patch === null) return;
+    void source.writeClipboard(patch).then(() => {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    });
+  }, [patch]);
 
   // Ctrl/Cmd+F opens the field. Scoped to this component's subtree via a
   // window listener guarded on a diff being present, so it cannot steal the
@@ -373,14 +389,19 @@ export function Diff({
           </span>
         ) : (
           patch !== null && (
-            <button className="label" onClick={() => setFinding(true)}>
-              find
-            </button>
+            <>
+              <button className="label" onClick={copyPatch}>
+                {copied ? 'copied' : 'copy'}
+              </button>
+              <button className="label" onClick={() => setFinding(true)}>
+                find
+              </button>
+            </>
           )
         )}
 
         {onClose && (
-          <button onClick={onClose} className="label" aria-label="Close diff">
+          <button onClick={onClose} className="label diff-close" aria-label="Close diff">
             close
           </button>
         )}

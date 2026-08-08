@@ -25,6 +25,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 
+import type { Drag } from '../data/drag';
+import { coalesceDrag } from '../data/drag';
+
 /** Live geometry of the block a splitter sizes, and of what contains it. */
 export interface PaneGeometry {
   /** Current rendered size of the block, along the axis being dragged. */
@@ -78,6 +81,12 @@ export function Splitter({
     setPercent(total > 0 ? Math.round((size / total) * 100) : 0);
   });
 
+  // One resize per frame, not one per pointer event. A pointer reports far
+  // faster than the screen redraws, and every intermediate value would re-render
+  // the diff pane — which can be tens of thousands of rows — only for the next
+  // event to discard it. See data/drag.ts.
+  const coalesced = useRef<Drag | null>(null);
+
   const start = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     // Focused deliberately rather than left to the click, so the arrow keys are
@@ -86,7 +95,9 @@ export function Splitter({
     // suppresses the compatibility mouse events, and the double-click that
     // resets the pane is built out of those.
     ref.current?.focus();
-    drag.current = { from: vertical ? e.clientX : e.clientY, origin: measure().size };
+    const held = { from: vertical ? e.clientX : e.clientY, origin: measure().size };
+    drag.current = held;
+    coalesced.current = coalesceDrag((travel) => onResize(held.origin + travel * dir));
     e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(true);
   };
@@ -94,12 +105,15 @@ export function Splitter({
   const move = (e: ReactPointerEvent<HTMLDivElement>) => {
     const held = drag.current;
     if (!held) return;
-    const travel = (vertical ? e.clientX : e.clientY) - held.from;
-    onResize(held.origin + travel * dir);
+    coalesced.current?.move((vertical ? e.clientX : e.clientY) - held.from);
   };
 
   const end = () => {
     if (!drag.current) return;
+    // Flush before clearing, so the pane settles under the cursor rather than
+    // wherever the last frame happened to leave it.
+    coalesced.current?.stop();
+    coalesced.current = null;
     drag.current = null;
     setDragging(false);
   };

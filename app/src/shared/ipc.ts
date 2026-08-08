@@ -58,6 +58,9 @@ export const CHANNELS = {
   commitChanges: 'grove:commit-changes',
   cloneRepo: 'grove:clone-repo',
 
+  // OS integration
+  writeClipboard: 'grove:write-clipboard',
+
   // Agent
   generateCommitMessage: 'grove:generate-commit-message',
 
@@ -124,6 +127,10 @@ export interface GroveApi {
   unstageAll(path: string): Promise<void>;
   commitChanges(path: string, message: string): Promise<string>;
   cloneRepo(url: string): Promise<string>;
+
+  // --- OS integration ---
+  /** Put text on the system clipboard. */
+  writeClipboard(text: string): Promise<void>;
 
   // --- Agent ---
   generateCommitMessage(path: string): Promise<string>;

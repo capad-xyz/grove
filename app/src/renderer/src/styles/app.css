@@ -348,7 +348,24 @@
   min-width: 0;
   min-height: 0;
 }
+/* Narrow: the diff pane leaves the row and covers the whole surface. It is the
+   same element either way — exactly one <Diff> is ever mounted — because
+   rendering both postures and hiding one still builds both, and a 30,000-line
+   diff is not something to build twice for a copy nobody sees.
+
+   Which posture applies stays entirely in CSS. Deciding it in JS instead would
+   mean the mounted diff and the visible one are two separate opinions that have
+   to agree at every width, and when they disagree the pane is simply blank. */
 .pane-diff {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  flex-direction: column;
+  background: var(--surface-sunken);
+}
+/* Nothing selected: the list is the whole point of the narrow posture, so the
+   empty diff must not cover it. `data-viewing` is on `.app`. */
+.app[data-viewing='false'] .pane-diff {
   display: none;
 }
 
@@ -363,12 +380,23 @@
     max-width: calc(100% - 260px);
     /* No border-right: the splitter that follows this pane *is* that rule. */
   }
-  .pane-diff {
+  .pane-diff,
+  /* Wide with nothing selected still shows the pane and its empty state. */
+  .app[data-viewing='false'] .pane-diff {
     display: flex;
+    position: static;
+    z-index: auto;
+    background: none;
     flex-direction: column;
     flex: 1;
     min-width: 0;
     min-height: 0;
+  }
+  /* Closing is what the back-gesture would be on a phone: it belongs to the
+     posture where the diff covers everything, not to a pane sitting in a row
+     next to the thing it would return you to. */
+  .pane-diff .diff-close {
+    display: none;
   }
 }
 
