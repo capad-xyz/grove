@@ -1,0 +1,6 @@
+// Build config: the same settings as `tsconfig.json` (which typechecks
+// everything, tests included) minus the tests, which must not ship in `dist`.
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/*.test.ts"]
+}

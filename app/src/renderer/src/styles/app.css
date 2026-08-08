@@ -1,0 +1,1134 @@
+/**
+ * Component layer.
+ *
+ * Layout adapts at 700px of *container* width (DESIGN-SYSTEM.md §8), not
+ * viewport — so an Electron window at any size lays out correctly regardless of
+ * the display it happens to be on.
+ */
+
+.app {
+  container-type: inline-size;
+  container-name: app;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* --- Repo bar ------------------------------------------------------------ */
+
+/* The repo bar *is* the title bar. The window is frameless, so this row has to
+   double as the drag handle and leave the system controls their space — the
+   `titlebar-area` env vars give that geometry, and fall back to full width in a
+   plain browser where there is no overlay. */
+.repobar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: 34px;
+  padding-left: calc(env(titlebar-area-x, 0px) + var(--pad));
+  padding-right: calc(
+    100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%) + var(--pad)
+  );
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+  flex: none;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+/* Anything clickable has to opt out, or the window swallows the click as a
+   drag. */
+.repobar button,
+.repobar input,
+.repobar .no-drag {
+  -webkit-app-region: no-drag;
+}
+.repobar .name {
+  color: var(--text);
+  font-weight: 600;
+}
+/* The branch reads as a chip rather than loose text: it is a value, and at this
+   size a bare word beside the repo name looks like part of the name. */
+.repobar .branch {
+  color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1px 6px;
+  font-size: var(--fs-meta);
+}
+.repobar .counts {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+.repobar .spacer {
+  flex: 1;
+}
+.repobar .back {
+  color: var(--text-faint);
+  padding: 0 2px;
+  flex: none;
+}
+.repobar .back:hover {
+  color: var(--text);
+}
+.repobar .mode {
+  font-size: var(--fs-label);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-ghost);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1px 5px;
+}
+.dirty-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+}
+
+/* --- Worktree strip ------------------------------------------------------ */
+
+.worktrees {
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  overflow-x: auto;
+  flex: none;
+}
+.wt {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 3px var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  white-space: nowrap;
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+  transition: background-color 120ms var(--ease);
+}
+.wt:hover {
+  background: var(--surface-raised);
+}
+.wt[data-current='true'] {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.wt .ab {
+  color: var(--text-faint);
+}
+
+/* --- "While you were away" ------------------------------------------------
+   The single moment the accent is spent outside a diff. It is the brightest
+   thing on screen because it is the one question Grove exists to answer. */
+
+.away {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
+  height: var(--row-lg);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-align: left;
+  flex: none;
+  transition: background-color 120ms var(--ease);
+}
+.away:hover {
+  background: var(--surface-raised);
+}
+.away .away-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Home: choosing a repository ----------------------------------------- */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.home-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.home-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border-bottom: 1px solid var(--line);
+}
+.home-col:last-child {
+  border-bottom: 0;
+}
+
+@container app (min-width: 700px) {
+  .home-body {
+    flex-direction: row;
+  }
+  .home-col {
+    border-bottom: 0;
+    border-right: 1px solid var(--line);
+  }
+  .home-col:last-child {
+    border-right: 0;
+  }
+}
+
+.entry .base {
+  color: var(--text-dim);
+  flex: none;
+}
+.entry:hover .base {
+  color: var(--text);
+}
+.entry .dir {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+.entry[data-repo='true'] .base {
+  color: var(--text);
+}
+
+.section-head .crumb {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Drop target. A dashed outline over the whole surface rather than a small
+   zone: the window is the target, so the whole window should say so. */
+.home[data-dropping='true'] {
+  outline: 2px dashed var(--line-strong);
+  outline-offset: -6px;
+}
+.dropzone {
+  padding: var(--gap) var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex: none;
+}
+
+.home-path {
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad) 0;
+  flex: none;
+}
+.home-path input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
+.home-path button,
+.home-clone button {
+  flex: none;
+  padding: 0 var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+.home-path button:hover,
+.home-clone button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: var(--gap) var(--pad);
+  flex: none;
+}
+.crumb,
+.crumb-root {
+  padding: 1px 5px;
+  border-radius: var(--radius);
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+.crumb-root {
+  border: 1px solid var(--line);
+}
+.crumb:hover,
+.crumb-root:hover {
+  color: var(--text);
+  background: var(--surface-raised);
+}
+/* Separators are drawn, not typed, so a path segment can never be confused
+   for one. */
+.crumb + .crumb::before {
+  content: '/';
+  color: var(--text-ghost);
+  margin-right: 5px;
+}
+.crumb-sep {
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+  margin: 0 2px;
+}
+
+/* Keyboard cursor in the browse list. Same vocabulary as every other selected
+   row: brightness plus the 2px rule, no hue. */
+.entry[data-cursor='true'] {
+  background: var(--surface-raised);
+  border-left-color: var(--line-strong);
+}
+.scroll:focus-visible {
+  outline: none;
+}
+
+.home-clone {
+  display: flex;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad);
+  flex: none;
+}
+.home-clone input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
+.home-clone button {
+  flex: none;
+  padding: 0 var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+.home-clone button:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.home-clone button:disabled {
+  color: var(--text-ghost);
+  cursor: default;
+}
+
+/* --- Body: one column narrow, two panes wide ----------------------------- */
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.pane-commits {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.pane-diff {
+  display: none;
+}
+
+@container app (min-width: 700px) {
+  .pane-commits {
+    flex: none;
+    width: var(--pane-commits);
+    /* The floor under the diff, and the only one that holds without JS. A width
+       dragged wide on a second monitor is still in localStorage when the same
+       window is docked at 720px, and the pane it would leave for the diff is
+       nothing. Matches MIN_DIFF in data/panes.ts. */
+    max-width: calc(100% - 260px);
+    /* No border-right: the splitter that follows this pane *is* that rule. */
+  }
+  .pane-diff {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+}
+
+/* --- Splitters ------------------------------------------------------------
+   Each one replaces the 1px rule that already divided two blocks, rather than
+   adding a grip beside it — §10 is explicit that the chrome does not get more
+   weight, and a hatched bar next to a diff is exactly the kind of furniture
+   Grove is meant not to have.
+
+   What is seen stays 1px. What can be hit is `::after`, a few px to either
+   side, which is why the element carries a stacking context: the target
+   deliberately overlaps its neighbours. --- */
+
+.splitter {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  user-select: none;
+  /* Pointer drags must not be claimed by the pane's own scrolling. */
+  touch-action: none;
+}
+.splitter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--line);
+  transition: background-color 120ms var(--ease);
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+}
+.splitter:focus-visible {
+  outline: none;
+}
+.splitter:hover::before {
+  background: var(--line-strong);
+}
+/* Focus reaches for the same vocabulary as a selected row (§5): the 2px rule,
+   brightened. The rule grows outward from an absolutely positioned box, so it
+   overlaps rather than displaces — layout still never moves. */
+.splitter:focus-visible::before,
+.splitter[data-dragging='true']::before {
+  background: var(--text-faint);
+}
+.splitter[data-orientation='vertical']:focus-visible::before {
+  inset: 0 -1px;
+}
+.splitter[data-orientation='horizontal']:focus-visible::before {
+  inset: -1px 0;
+}
+
+.splitter[data-orientation='vertical'] {
+  /* Narrow: the panes stack and there is nothing to split. Restored below the
+     breakpoint rule, which has to come after this one — same specificity, so
+     source order is what decides. */
+  display: none;
+  width: 1px;
+  cursor: col-resize;
+}
+/* 7px of target, leaning away from the neighbour that already has one. The
+   commit list's own scrollbar runs down the pane's right edge, immediately left
+   of this bar, so the grab zone takes 2px from it and 4px from the diff, which
+   has nothing there. */
+.splitter[data-orientation='vertical']::after {
+  inset: 0 -4px 0 -2px;
+}
+.splitter[data-orientation='horizontal'] {
+  height: 1px;
+  cursor: row-resize;
+}
+/* Same trade the other way up: the diff's horizontal scrollbar runs along the
+   bottom edge of the body above, so the zone leans down into the panel's
+   section header, which is not a target. */
+.splitter[data-orientation='horizontal']::after {
+  inset: -2px 0 -4px;
+}
+
+/* During a drag the target covers the window. The pointer is captured anyway,
+   so this is not about routing events — it is so the resize cursor survives
+   leaving the bar, and so nothing underneath takes a hover state while the
+   user is busy somewhere else. */
+.splitter[data-dragging='true']::after {
+  position: fixed;
+  inset: 0;
+}
+
+@container app (min-width: 700px) {
+  .splitter[data-orientation='vertical'] {
+    display: block;
+  }
+}
+
+/* --- Commit list --------------------------------------------------------- */
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad) 4px;
+  flex: none;
+}
+.section-head .rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* --- Commit graph gutter -------------------------------------------------
+   Structure, not content, so it stays greyscale — a coloured graph would
+   compete with the diff, which is the only thing allowed to be loud. The row
+   has no horizontal padding on this side so lanes meet the rows above and
+   below exactly. */
+.commit .graph {
+  flex: none;
+  margin-left: calc(var(--pad) * -1);
+  display: block;
+}
+.g-line {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  fill: none;
+}
+.g-node {
+  fill: var(--text-faint);
+  stroke: var(--bg);
+  stroke-width: 1.5;
+}
+/* A commit that arrived while you were away reads brighter, same as its text. */
+.g-node-new {
+  fill: var(--text);
+}
+.commit[data-selected='true'] .g-node {
+  fill: var(--text);
+}
+
+.commit .sha {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  flex: none;
+}
+.commit .msg {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.commit[data-new='true'] .msg {
+  color: var(--text);
+}
+.commit[data-selected='true'] .msg {
+  color: var(--text);
+}
+.commit .when {
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+  flex: none;
+}
+.commit .ref {
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0 4px;
+  flex: none;
+}
+
+/* --- Virtualised commit list ----------------------------------------------
+   Only the rows on screen are mounted. The spacer carries the full height so
+   the scrollbar reflects the whole history, and each row is absolutely placed
+   at index * --row. Every item is exactly one row tall — including the
+   boundary — which is what lets position be arithmetic instead of measurement. */
+
+.commit-scroll {
+  flex: 1;
+  min-height: 0;
+}
+.commit-spacer {
+  position: relative;
+}
+.commit-slot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--row);
+}
+
+/* The "since you last looked" boundary. This is the one place a hue is
+   permitted outside a diff (DESIGN-SYSTEM.md §5). */
+.since {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: 0 var(--pad);
+  font-size: var(--fs-label);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
+  flex: none;
+}
+.since .rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* --- Diff ---------------------------------------------------------------- */
+
+.diff {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--surface-sunken);
+}
+.diff-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: var(--row-lg);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+.diff-head .title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Both axes scroll. Code lines are `pre`, so a diff is routinely wider than its
+   pane — clipping it with `overflow-x: hidden` silently swallowed the end of
+   every long line with no way to reach it, which in a diff viewer means you
+   cannot read the change you opened. */
+.diff-body {
+  font-size: var(--fs-code);
+  line-height: var(--lh-code);
+  padding: 6px 0;
+  overflow: auto;
+  min-height: 0;
+}
+/* Shrink-wraps to the widest line, with a 100% floor so a short diff still
+   fills the pane. Rows then inherit that width and their backgrounds run the
+   full scrolled distance. */
+.diff-lines {
+  display: inline-block;
+  min-width: 100%;
+}
+.diff-line {
+  display: flex;
+  padding: 0 var(--pad);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.diff-line.add {
+  color: var(--add);
+  background: var(--add-bg);
+}
+.diff-line.del {
+  color: var(--del);
+  background: var(--del-bg);
+}
+.diff-line.ctx {
+  color: var(--text-faint);
+}
+.diff-line.hunk {
+  color: var(--text-ghost);
+  background: var(--surface);
+  margin: 6px 0 2px;
+}
+.diff-line.file {
+  color: var(--text-dim);
+  background: var(--surface);
+  margin: 6px 0 0;
+}
+
+/* --- Image diffs ----------------------------------------------------------
+   A checkerboard behind each image, because transparency against a dark panel
+   is indistinguishable from black — and "did the alpha change" is exactly the
+   question you open an image diff to answer. */
+
+.img-diff {
+  border-bottom: 1px solid var(--line);
+  padding: var(--gap) var(--pad);
+}
+.img-file {
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  margin-bottom: var(--gap);
+  overflow-wrap: anywhere;
+}
+.img-pair {
+  display: flex;
+  gap: var(--pad);
+  align-items: flex-start;
+}
+.img-side {
+  flex: 1;
+  min-width: 0;
+}
+.img-side img {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  /* Nearest-neighbour so a small icon is inspected, not blurred. */
+  image-rendering: pixelated;
+  background-color: var(--surface);
+  background-image:
+    linear-gradient(45deg, var(--surface-raised) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--surface-raised) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--surface-raised) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--surface-raised) 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+.img-size {
+  color: var(--text-ghost);
+}
+
+/* Video and audio stream from `grove-file:` rather than arriving as base64, so
+   the element handles its own loading and the app never blocks on a file. */
+.media {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+audio.media {
+  max-height: none;
+  width: 100%;
+}
+
+/* A binary with no player is described, never decoded. Rendering its bytes as
+   text is what produced pages of mojibake. */
+.binary-card {
+  padding: var(--pad);
+  border-bottom: 1px solid var(--line);
+}
+.binary-card .label {
+  margin-top: 4px;
+}
+.truncated {
+  display: block;
+  padding: var(--gap) var(--pad) 0;
+  color: var(--text-faint);
+}
+
+/* --- Markdown preview -----------------------------------------------------
+   Collapsed by default: the diff is what you came for, and rendered output
+   answers a different, secondary question. Prose gets a readable measure and
+   a little more line-height than the diff, because it is read rather than
+   scanned. */
+
+.md-block {
+  border-bottom: 1px solid var(--line);
+}
+.md-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
+  height: var(--row);
+  padding: 0 var(--pad);
+  text-align: left;
+}
+.md-toggle:hover {
+  background: var(--surface-raised);
+}
+.md-name {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-body {
+  padding: var(--gap) var(--pad) var(--pad);
+  max-width: 68ch;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4,
+.md-body h5,
+.md-body h6 {
+  color: var(--text);
+  font-size: var(--fs-body);
+  margin: 1.2em 0 0.4em;
+}
+.md-body h1 {
+  font-size: 15px;
+}
+.md-body h2 {
+  font-size: 13px;
+}
+.md-body p,
+.md-body ul,
+.md-body ol,
+.md-body blockquote {
+  margin: 0.6em 0;
+}
+.md-body ul,
+.md-body ol {
+  padding-left: 1.4em;
+}
+.md-body blockquote {
+  border-left: 2px solid var(--line-strong);
+  padding-left: var(--gap);
+  color: var(--text-faint);
+}
+.md-body hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1em 0;
+}
+.md-body a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body strong {
+  color: var(--text);
+}
+.md-code,
+.md-pre {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.md-code {
+  padding: 0 4px;
+  color: var(--text);
+}
+.md-pre {
+  padding: var(--gap);
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+.md-pre code {
+  white-space: pre;
+}
+
+/* --- Find in diff ---------------------------------------------------------
+   Highlights are the one deliberate exception to "diff colour is the only
+   saturated colour": they are transient, they exist only while you are
+   searching, and a greyscale highlight is invisible against a diff that is
+   already using brightness to mean something else. The current match inverts
+   rather than shifting hue, so it never reads as a + or a -. */
+
+.find {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.find input {
+  width: 140px;
+  padding: 2px 6px;
+  font-size: var(--fs-meta);
+}
+.find button {
+  padding: 0 4px;
+}
+.find button:hover {
+  color: var(--text);
+}
+
+mark.hit {
+  background: var(--accent-soft);
+  color: inherit;
+  border-radius: 2px;
+  /* The row background must still show through, or a highlight on a +/- line
+     would hide which side it is on. */
+  padding: 0;
+}
+mark.hit[data-current-match='true'] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* --- Narrow-mode overlay ------------------------------------------------- */
+
+.app {
+  position: relative;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-sunken);
+}
+
+/* Wide: the diff lives in its own pane, so the overlay must not also render.
+   This block has to come *after* the rule above — same specificity, so source
+   order decides, and declaring it earlier let the overlay cover the whole app
+   at full width. */
+@container app (min-width: 700px) {
+  .overlay {
+    display: none;
+  }
+}
+
+/* --- Active filter chip --------------------------------------------------- */
+
+.filter {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  width: 100%;
+  height: var(--row);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  flex: none;
+}
+.filter:hover {
+  background: var(--surface-raised);
+}
+.filter-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+/* --- Spotlight ------------------------------------------------------------
+   Covers the surface at every width, unlike `.overlay`, which is a
+   narrow-mode presentation for the diff and is hidden above the breakpoint. */
+
+.spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.spot-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: var(--row-lg);
+  padding: 0 var(--pad);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex: none;
+}
+.spot-head input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.spot-head input:focus {
+  border: 0;
+}
+.spot-list {
+  flex: 1;
+  min-height: 0;
+}
+.spot-row {
+  cursor: pointer;
+}
+/* Highlight is keyboard-driven, so it cannot rely on :hover — but it uses the
+   same brightness-plus-rule vocabulary as every other selected row. */
+.spot-row[data-highlighted='true'] {
+  background: var(--surface-raised);
+  border-left-color: var(--line-strong);
+}
+.spot-primary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.spot-row[data-highlighted='true'] .spot-primary {
+  color: var(--text);
+}
+.spot-secondary {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+/* --- Status -------------------------------------------------------------- */
+
+/* Two sizing modes, and the difference is whether the user has ever said
+   anything. Untouched, the panel is content-height capped at 34% — a clean repo
+   is a one-line strip, which is the whole reason that cap was a percentage. Once
+   the splitter is dragged, --pane-status is set and pins the height outright:
+   a divider that stops following your hand because the list underneath ran out
+   of files is a broken divider.
+
+   No border-top; the splitter above it draws that rule.
+   The `min()` and the `min-height` are the guarantees that survive a window
+   resize after the drag — they match MIN_BODY and MIN_STATUS in data/panes.ts,
+   which is where the same floors are enforced during the drag itself. */
+.status {
+  background: var(--surface);
+  flex: none;
+  height: var(--pane-status, auto);
+  min-height: 56px;
+  max-height: min(var(--pane-status, 34%), calc(100% - 140px));
+  display: flex;
+  flex-direction: column;
+}
+/* Once the height is pinned, the file list takes the slack so the commit box
+   stays on the bottom edge. `flex-basis: auto` is load-bearing: a `0` basis
+   would stop the list contributing its own height and collapse the panel in the
+   content-sized mode above. */
+.status .scroll {
+  flex: 1 1 auto;
+}
+.status .file {
+  font-size: var(--fs-meta);
+}
+.status .code {
+  width: 12px;
+  flex: none;
+  color: var(--text-faint);
+}
+.status .code[data-code='A'],
+.status .code[data-code='?'] {
+  color: var(--add);
+}
+.status .code[data-code='D'] {
+  color: var(--del);
+}
+/* The filename is what you scan, so it is brighter and never shrinks; the
+   directory is dimmer and gives up space first. Everything stays LTR — see the
+   comment in Chrome.tsx for why the rtl-truncation trick is not used. */
+.status .path {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* Sub-headers inside the working tree: same rule, one step quieter. */
+.section-head.sub {
+  padding: 6px var(--pad) 2px;
+}
+
+/* Actions are words, not coloured buttons (DESIGN-SYSTEM.md §9: a primary
+   action is brighter, not bluer). */
+.act {
+  flex: none;
+  color: var(--text-faint);
+  padding: 0 2px;
+  transition: color 120ms var(--ease);
+}
+.act:hover:not(:disabled) {
+  color: var(--text);
+}
+.act:disabled {
+  color: var(--text-ghost);
+  cursor: default;
+}
+.act.primary {
+  color: var(--text-dim);
+}
+.act.primary:hover:not(:disabled) {
+  color: var(--text);
+}
+
+/* The row verb stays hidden until hover: a column of buttons at this density
+   would be louder than the filenames it sits beside.
+   `pointer-events: none` while hidden is load-bearing — this is the only
+   control that writes, and an invisible-but-clickable one would just relocate
+   the accidental-staging problem the preview change exists to fix. */
+.status .verb {
+  flex: none;
+  opacity: 0;
+  pointer-events: none;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  transition:
+    opacity 120ms var(--ease),
+    color 120ms var(--ease);
+}
+.status .row:hover .verb,
+.status .row:focus-within .verb,
+.status .verb:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.status .verb:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+.status .verb:focus-visible {
+  border-color: var(--line-strong);
+  outline: none;
+}
+.status .verb:disabled {
+  color: var(--text-ghost);
+}
+.status .row[data-busy='true'] {
+  cursor: default;
+}
+
+.commitbox {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding: var(--gap) var(--pad);
+  border-top: 1px solid var(--line);
+  flex: none;
+}
+.commitbox input {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+}
+.status .dir {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-faint);
+}
+.status .base {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+}
+
+.empty {
+  padding: var(--pad);
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+}

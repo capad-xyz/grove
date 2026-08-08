@@ -1,0 +1,41 @@
+{
+  "name": "@grove/app",
+  "version": "0.2.0",
+  "description": "Grove's Electron shell: window lifecycle, the hardened IPC bridge, and the renderer.",
+  "private": true,
+  "author": "capad <oss@capad.fyi>",
+  "license": "GPL-3.0-or-later",
+  "repository": "https://github.com/capad-xyz/grove",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "predev": "npm --prefix ../engine run build",
+    "dev": "electron-vite dev",
+    "dev:renderer": "vite --config vite.renderer.config.ts",
+    "prebuild": "npm --prefix ../engine run build",
+    "build": "npm run clean && electron-vite build",
+    "start": "electron-vite preview",
+    "smoke": "electron-vite build && electron . --smoke",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test",
+    "package:dir": "npm run build && electron-builder --dir",
+    "package": "npm run build && electron-builder",
+    "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "@grove/engine": "file:../engine",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}

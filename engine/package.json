@@ -1,0 +1,34 @@
+{
+  "name": "@grove/engine",
+  "version": "0.2.0",
+  "description": "Grove's git engine: spawns the user's git binary and turns its output into typed repo state. Headless — no UI, no Electron.",
+  "private": true,
+  "type": "module",
+  "author": "capad <oss@capad.fyi>",
+  "license": "GPL-3.0-or-later",
+  "repository": "https://github.com/capad-xyz/grove",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.ts\"",
+    "check": "npm run typecheck && npm test"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

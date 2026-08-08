@@ -61,14 +61,14 @@ pub fn graph(path: &str, limit: u32, refspec: Option<&str>) -> Result<Vec<Commit
         _ => args.push("--all"),
     }
     args.extend_from_slice(&["--topo-order", "--decorate=full", "-n", &limit, &fmt]);
-    let out = write::git(&dir, &args)?;
+    let out = write::git_read(&dir, &args)?;
     Ok(parse_commit_records(&out))
 }
 
 /// Local branch names, most-recently-committed first.
 pub fn branches(path: &str) -> Result<Vec<String>> {
     let dir = workdir_of(path)?;
-    let out = write::git(
+    let out = write::git_read(
         &dir,
         &[
             "for-each-ref",
@@ -139,7 +139,7 @@ fn parse_refs(raw: &str) -> Vec<String> {
 
 /// Short branch name for the working tree, or `None` if detached/unknown.
 fn current_branch(workdir: &str) -> Option<String> {
-    let out = write::git(workdir, &["rev-parse", "--abbrev-ref", "HEAD"]).ok()?;
+    let out = write::git_read(workdir, &["rev-parse", "--abbrev-ref", "HEAD"]).ok()?;
     let name = out.trim();
     match name {
         "" | "HEAD" => None,
@@ -153,7 +153,7 @@ pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
 
     // One `git show` carries metadata *and* the parent list (%P), so we can pick
     // the diff base without a separate `rev-parse` round-trip.
-    let meta = write::git(
+    let meta = write::git_read(
         &dir,
         &[
             "show",
@@ -180,7 +180,7 @@ pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
     // comes first, so statuses are known before we read the numstat rows.
     let mut status: HashMap<String, String> = HashMap::new();
     let mut files = Vec::new();
-    let changes = write::git(&dir, &["diff", "--raw", "--numstat", &base, oid])?;
+    let changes = write::git_read(&dir, &["diff", "--raw", "--numstat", &base, oid])?;
     for line in changes.lines().filter(|l| !l.is_empty()) {
         if line.starts_with(':') {
             // ":100644 100644 sha sha M\tpath" (renames keep the new path).
@@ -227,14 +227,14 @@ pub fn commit_detail(path: &str, oid: &str) -> Result<CommitDetail> {
 pub fn file_diff(path: &str, oid: &str, file: &str) -> Result<String> {
     let dir = workdir_of(path)?;
     let base = diff_base(&dir, oid);
-    write::git(&dir, &["diff", &base, oid, "--", file])
+    write::git_read(&dir, &["diff", &base, oid, "--", file])
 }
 
 /// The diff base for a commit: its first parent if it has one, otherwise git's
 /// empty-tree object (so a root commit shows as all additions).
 fn diff_base(dir: &str, oid: &str) -> String {
     let parent = format!("{oid}^");
-    if write::git(dir, &["rev-parse", "--verify", "-q", &parent]).is_ok() {
+    if write::git_read(dir, &["rev-parse", "--verify", "-q", &parent]).is_ok() {
         parent
     } else {
         "4b825dc642cb6eb9a060e54bf8d69288fbee4904".to_string()
@@ -298,57 +298,87 @@ fn dirs_home() -> String {
 }
 
 /// List the repository's linked working trees with their state.
+/// The per-worktree status/ahead-behind checks run concurrently, so wall time
+/// is ~one check rather than 2×N sequential subprocesses.
 pub fn worktrees(path: &str) -> Result<Vec<Worktree>> {
     let dir = workdir_of(path)?;
-    let out = write::git(&dir, &["worktree", "list", "--porcelain"])?;
+    let out = write::git_read(&dir, &["worktree", "list", "--porcelain"])?;
     let normalized = out.replace('\r', "");
-    let mut list = Vec::new();
 
-    for (i, block) in normalized.split("\n\n").enumerate() {
+    struct Meta {
+        path: String,
+        head: String,
+        branch: Option<String>,
+        detached: bool,
+    }
+    let mut metas = Vec::new();
+    for block in normalized.split("\n\n") {
         let block = block.trim();
         if block.is_empty() {
             continue;
         }
-        let mut wt_path = String::new();
-        let mut head = String::new();
-        let mut branch = None;
-        let mut detached = false;
+        let mut m = Meta {
+            path: String::new(),
+            head: String::new(),
+            branch: None,
+            detached: false,
+        };
         for line in block.lines() {
             if let Some(p) = line.strip_prefix("worktree ") {
-                wt_path = p.to_string();
+                m.path = p.to_string();
             } else if let Some(h) = line.strip_prefix("HEAD ") {
-                head = h.chars().take(7).collect();
+                m.head = h.chars().take(7).collect();
             } else if let Some(b) = line.strip_prefix("branch ") {
-                branch = Some(b.trim_start_matches("refs/heads/").to_string());
+                m.branch = Some(b.trim_start_matches("refs/heads/").to_string());
             } else if line.trim() == "detached" {
-                detached = true;
+                m.detached = true;
             }
         }
-        if wt_path.is_empty() {
-            continue;
+        if !m.path.is_empty() {
+            metas.push(m);
         }
-        let dirty = write::git(&wt_path, &["status", "--porcelain"])
-            .map(|s| !s.trim().is_empty())
-            .unwrap_or(false);
-        let (ahead, behind, has_upstream) = ahead_behind(&wt_path);
-        list.push(Worktree {
+    }
+
+    let checks: Vec<(bool, (u32, u32, bool))> = std::thread::scope(|s| {
+        let handles: Vec<_> = metas
+            .iter()
+            .map(|m| {
+                let wt = m.path.clone();
+                s.spawn(move || {
+                    let dirty = write::git_read(&wt, &["status", "--porcelain"])
+                        .map(|s| !s.trim().is_empty())
+                        .unwrap_or(false);
+                    (dirty, ahead_behind(&wt))
+                })
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap_or((false, (0, 0, false))))
+            .collect()
+    });
+
+    Ok(metas
+        .into_iter()
+        .zip(checks)
+        .enumerate()
+        .map(|(i, (m, (dirty, (ahead, behind, has_upstream))))| Worktree {
             is_main: i == 0,
-            path: wt_path,
-            branch,
-            head,
-            detached,
+            path: m.path,
+            branch: m.branch,
+            head: m.head,
+            detached: m.detached,
             dirty,
             ahead,
             behind,
             has_upstream,
-        });
-    }
-    Ok(list)
+        })
+        .collect())
 }
 
 /// (ahead, behind, has_upstream) for the working tree's HEAD vs its upstream.
 fn ahead_behind(wt: &str) -> (u32, u32, bool) {
-    match write::git(wt, &["rev-list", "--left-right", "--count", "@{u}...HEAD"]) {
+    match write::git_read(wt, &["rev-list", "--left-right", "--count", "@{u}...HEAD"]) {
         Ok(s) => {
             let mut it = s.split_whitespace();
             let behind = it.next().and_then(|x| x.parse().ok()).unwrap_or(0);
@@ -363,7 +393,7 @@ fn ahead_behind(wt: &str) -> (u32, u32, bool) {
 /// (i.e. unpushed). With no remotes configured, every local commit is listed.
 pub fn unpushed_commits(path: &str) -> Result<Vec<String>> {
     let dir = workdir_of(path)?;
-    let out = write::git(&dir, &["rev-list", "--branches", "--not", "--remotes"]).unwrap_or_default();
+    let out = write::git_read(&dir, &["rev-list", "--branches", "--not", "--remotes"]).unwrap_or_default();
     Ok(out
         .lines()
         .map(|s| s.trim().to_string())
@@ -374,7 +404,7 @@ pub fn unpushed_commits(path: &str) -> Result<Vec<String>> {
 /// All tracked file paths, for the file finder.
 pub fn list_files(path: &str) -> Result<Vec<String>> {
     let dir = workdir_of(path)?;
-    let out = write::git(&dir, &["ls-files"])?;
+    let out = write::git_read(&dir, &["ls-files"])?;
     Ok(out
         .lines()
         .map(|s| s.to_string())
@@ -389,7 +419,7 @@ pub fn grep_repo(path: &str, query: &str) -> Result<Vec<GrepHit>> {
     }
     let dir = workdir_of(path)?;
     // git grep exits non-zero on no matches, so treat errors as empty.
-    let out = write::git(&dir, &["grep", "-n", "-I", "-F", "-i", "-e", query]).unwrap_or_default();
+    let out = write::git_read(&dir, &["grep", "-n", "-I", "-F", "-i", "-e", query]).unwrap_or_default();
     let mut hits = Vec::new();
     for line in out.lines().take(300) {
         let mut parts = line.splitn(3, ':');
@@ -409,14 +439,14 @@ pub fn grep_repo(path: &str, query: &str) -> Result<Vec<GrepHit>> {
 pub fn all_files(path: &str) -> Result<Vec<String>> {
     let dir = workdir_of(path)?;
     let mut set = std::collections::BTreeSet::new();
-    if let Ok(out) = write::git(&dir, &["ls-files"]) {
+    if let Ok(out) = write::git_read(&dir, &["ls-files"]) {
         for l in out.lines() {
             if !l.is_empty() {
                 set.insert(l.to_string());
             }
         }
     }
-    if let Ok(out) = write::git(&dir, &["log", "--all", "--pretty=format:", "--name-only"]) {
+    if let Ok(out) = write::git_read(&dir, &["log", "--all", "--pretty=format:", "--name-only"]) {
         for l in out.lines() {
             let l = l.trim();
             if !l.is_empty() {
@@ -449,10 +479,10 @@ pub fn search_commits(path: &str, query: &str) -> Result<Vec<CommitNode>> {
     //    commit. `--grep` never matches a commit's own id, so handle it first.
     let is_hex = q.len() >= 4 && q.len() <= 40 && q.chars().all(|c| c.is_ascii_hexdigit());
     if is_hex {
-        if let Ok(oid) = write::git(&dir, &["rev-parse", "--verify", "--quiet", &format!("{q}^{{commit}}")]) {
+        if let Ok(oid) = write::git_read(&dir, &["rev-parse", "--verify", "--quiet", &format!("{q}^{{commit}}")]) {
             let oid = oid.trim().to_string();
             if !oid.is_empty() {
-                let out = write::git(&dir, &["log", "-n", "1", "--topo-order", &fmt, &oid]).unwrap_or_default();
+                let out = write::git_read(&dir, &["log", "-n", "1", "--topo-order", &fmt, &oid]).unwrap_or_default();
                 take(out, &mut seen, &mut nodes);
             }
         }
@@ -460,12 +490,12 @@ pub fn search_commits(path: &str, query: &str) -> Result<Vec<CommitNode>> {
 
     // 2. Commit message match.
     let grep = format!("--grep={q}");
-    let out = write::git(&dir, &["log", "--all", "-i", &grep, "-n", "40", "--topo-order", &fmt]).unwrap_or_default();
+    let out = write::git_read(&dir, &["log", "--all", "-i", &grep, "-n", "40", "--topo-order", &fmt]).unwrap_or_default();
     take(out, &mut seen, &mut nodes);
 
     // 3. Author name / email match.
     let author = format!("--author={q}");
-    let out = write::git(&dir, &["log", "--all", "-i", &author, "-n", "20", "--topo-order", &fmt]).unwrap_or_default();
+    let out = write::git_read(&dir, &["log", "--all", "-i", &author, "-n", "20", "--topo-order", &fmt]).unwrap_or_default();
     take(out, &mut seen, &mut nodes);
 
     Ok(nodes)
@@ -474,7 +504,7 @@ pub fn search_commits(path: &str, query: &str) -> Result<Vec<CommitNode>> {
 /// Commits that touched `file`, newest first.
 pub fn file_history(path: &str, file: &str) -> Result<Vec<CommitNode>> {
     let dir = workdir_of(path)?;
-    let out = write::git(
+    let out = write::git_read(
         &dir,
         &[
             "log",
@@ -493,19 +523,19 @@ pub fn file_history(path: &str, file: &str) -> Result<Vec<CommitNode>> {
 /// Diff of a single file between two revisions.
 pub fn file_diff_between(path: &str, a: &str, b: &str, file: &str) -> Result<String> {
     let dir = workdir_of(path)?;
-    write::git(&dir, &["diff", a, b, "--", file])
+    write::git_read(&dir, &["diff", a, b, "--", file])
 }
 
 /// Contents of `file` at revision `rev` (e.g. "HEAD"), for quick view.
 pub fn file_at(path: &str, rev: &str, file: &str) -> Result<String> {
     let dir = workdir_of(path)?;
-    write::git(&dir, &["show", &format!("{rev}:{file}")])
+    write::git_read(&dir, &["show", &format!("{rev}:{file}")])
 }
 
 /// Per-line blame for a file at HEAD.
 pub fn blame(path: &str, file: &str) -> Result<Vec<BlameLine>> {
     let dir = workdir_of(path)?;
-    let out = write::git(&dir, &["blame", "--porcelain", "HEAD", "--", file])?;
+    let out = write::git_read(&dir, &["blame", "--porcelain", "HEAD", "--", file])?;
 
     // Porcelain repeats full commit info only on a commit's first line, so we
     // cache (author, summary) per sha.
@@ -550,7 +580,10 @@ pub fn blame(path: &str, file: &str) -> Result<Vec<BlameLine>> {
 /// Working-tree status: staged, unstaged, and untracked files.
 pub fn working_status(path: &str) -> Result<WorkingStatus> {
     let dir = workdir_of(path)?;
-    let out = write::git(&dir, &["status", "--porcelain", "--untracked-files=all"])?;
+    // `normal` collapses untracked directories to one entry instead of walking
+    // them; on a repo with a fresh dependency dir that's the difference
+    // between ~50ms and multiple seconds.
+    let out = write::git_read(&dir, &["status", "--porcelain", "--untracked-files=normal"])?;
     let mut staged = Vec::new();
     let mut unstaged = Vec::new();
     let mut untracked = Vec::new();
@@ -589,23 +622,23 @@ pub fn working_status(path: &str) -> Result<WorkingStatus> {
 pub fn working_diff(path: &str, file: &str, staged: bool) -> Result<String> {
     let dir = workdir_of(path)?;
     if staged {
-        write::git(&dir, &["diff", "--cached", "--", file])
+        write::git_read(&dir, &["diff", "--cached", "--", file])
     } else {
-        write::git(&dir, &["diff", "--", file])
+        write::git_read(&dir, &["diff", "--", file])
     }
 }
 
 /// Whether the working tree has any changes (for the sidebar dirty dot).
 pub fn is_dirty(path: &str) -> Result<bool> {
     let dir = workdir_of(path)?;
-    let out = write::git(&dir, &["status", "--porcelain"])?;
+    let out = write::git_read(&dir, &["status", "--porcelain"])?;
     Ok(!out.trim().is_empty())
 }
 
 /// The full staged diff (`git diff --cached`), for agent commit messages.
 pub fn staged_diff(path: &str) -> Result<String> {
     let dir = workdir_of(path)?;
-    write::git(&dir, &["diff", "--cached"])
+    write::git_read(&dir, &["diff", "--cached"])
 }
 
 /// Raw contents of a working-tree file (for previewing untracked files).

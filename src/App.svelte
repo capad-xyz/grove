@@ -1,6 +1,5 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
-  import { listen } from "@tauri-apps/api/event";
   import CommitGraph from "./CommitGraph.svelte";
   import CommitDetail from "./CommitDetail.svelte";
   import Home from "./Home.svelte";
@@ -13,6 +12,9 @@
   import NavHub from "./NavHub.svelte";
   import Skeleton from "./Skeleton.svelte";
   import Copy from "./Copy.svelte";
+  import { repoState, attachRepoEvents, resetRepoState } from "./state/repo.svelte.js";
+
+  attachRepoEvents();
 
   let view = $state("home"); // "home" | "repo"
   let tab = $state("graph"); // "graph" | "worktrees"
@@ -25,8 +27,6 @@
   let finderOpen = $state(false);
   let fileView = $state(null);
   let live = $state(false);
-  let liveTick = $state(0);
-  let listening = false;
   let branches = $state([]);
   let branch = $state(""); // "" = all branches
   let headDirty = $state(false); // open repo has uncommitted changes
@@ -65,6 +65,7 @@
     fileView = null;
     live = false;
     invoke("unwatch_repo").catch(() => {});
+    resetRepoState();
   }
 
   async function applyLoc(loc) {
@@ -110,11 +111,10 @@
     invoke("recent_repos")
       .then((r) => {
         recents = r;
-        for (const repo of r) {
-          invoke("repo_dirty", { path: repo.path })
-            .then((d) => (dirtyMap = { ...dirtyMap, [repo.path]: d }))
-            .catch(() => {});
-        }
+        // One batched call instead of a subprocess per repo at launch.
+        invoke("repos_dirty", { paths: r.map((x) => x.path) })
+          .then((m) => (dirtyMap = { ...dirtyMap, ...m }))
+          .catch(() => {});
       })
       .catch(() => {});
   }
@@ -187,6 +187,7 @@
     branch = "";
     knownPaths = new Set();
     fileIndex = [];
+    resetRepoState(p);
     const name = p.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
     try {
       // Open is fast; show the repo shell straight away, then stream the
@@ -230,48 +231,40 @@
     }
   }
 
-  // Live-refresh plumbing. We coalesce watcher events away from active input so
-  // a refresh never lands mid-scroll/mid-click, and we only reassign the big
-  // reactive arrays when their contents actually changed (reassigning `commits`
-  // forces the whole graph layout to recompute, which is the expensive part).
-  let lastInteract = 0; // epoch ms of the last wheel/click/keypress
-  let refreshPending = false;
-  const markInteract = () => (lastInteract = Date.now());
-
-  const sameIds = (a, b) =>
-    a.length === b.length && (a.length === 0 || (a[0].id === b[0].id && a[a.length - 1].id === b[b.length - 1].id));
-
-  // Re-fetch the repo's data when the watcher reports a change.
-  async function refresh() {
-    if (view !== "repo" || !path) return;
-    // Defer while the user is actively scrolling/clicking; retry once they idle.
-    const idle = Date.now() - lastInteract;
-    if (idle < 500) {
-      if (refreshPending) return;
-      refreshPending = true;
-      setTimeout(() => {
-        refreshPending = false;
-        refresh();
-      }, 500 - idle + 60);
-      return;
+  // Backend-pushed refresh. The Rust repo service is the single source of
+  // truth for when state refreshes: it watches the repo, coalesces changes,
+  // recomputes only what a change touched, and pushes typed events (see
+  // src/state/repo.svelte.js). These effects apply each domain as it arrives —
+  // the backend only emits when contents actually changed, so every event is a
+  // real update.
+  let appliedGraph = null;
+  $effect(() => {
+    const g = repoState.graph;
+    if (!g || view !== "repo" || g === appliedGraph) return;
+    appliedGraph = g;
+    if (branch) {
+      // A branch filter is active: the pushed graph covers all refs, so
+      // re-fetch the filtered view; head/unpushed still apply directly.
+      invoke("commit_graph", { path, limit: 400, refspec: branch })
+        .then((c) => (commits = c))
+        .catch(() => {});
+    } else {
+      commits = g.commits;
     }
-    try {
-      const next = await invoke("commit_graph", { path, limit: 400, refspec: branch || null });
-      if (!sameIds(commits, next)) commits = next; // skip the relayout when unchanged
-      const up = await invoke("unpushed_commits", { path }).catch(() => []);
-      if (up.length !== unpushed.length || up.some((x, i) => x !== unpushed[i])) unpushed = up;
-      const r = await invoke("repo_open", { path });
-      if (r?.head !== repo?.head) repo = r;
-      invoke("repo_dirty", { path }).then((d) => (headDirty = d)).catch(() => {});
-      invoke("list_files", { path }).then(addFiles).catch(() => {}); // pick up new files
-      liveTick++; // nudge the changes/worktrees views to reload too
-    } catch {}
-  }
+    unpushed = g.unpushed;
+    if (repo && g.head !== repo.head) repo = { ...repo, head: g.head };
+    invoke("list_files", { path }).then(addFiles).catch(() => {}); // pick up new files
+  });
 
   $effect(() => {
-    if (listening) return;
-    listening = true;
-    listen("repo-changed", () => refresh());
+    if (repoState.dirty === null || view !== "repo") return;
+    headDirty = repoState.dirty;
+    dirtyMap = { ...dirtyMap, [path]: repoState.dirty };
+  });
+
+  $effect(() => {
+    const b = repoState.branches;
+    if (b && view === "repo") branches = b;
   });
 </script>
 
@@ -283,10 +276,7 @@
 {/snippet}
 
 <svelte:window
-  onwheel={markInteract}
-  onpointerdown={markInteract}
   onkeydown={(e) => {
-    markInteract();
     const tag = (e.target?.tagName || "").toLowerCase();
     const typing = tag === "input" || tag === "textarea" || e.target?.isContentEditable;
     const mod = e.ctrlKey || e.metaKey;
@@ -371,11 +361,11 @@
       </div>
     {:else if tab === "changes"}
       <div class="body">
-        <div class="pane"><Changes {path} tick={liveTick} onchanged={refresh} /></div>
+        <div class="pane"><Changes {path} pushed={repoState.status} /></div>
       </div>
     {:else}
       <div class="body">
-        <div class="pane"><Worktrees {path} onopen={openRepo} tick={liveTick} /></div>
+        <div class="pane"><Worktrees {path} onopen={openRepo} pushed={repoState.worktrees} /></div>
       </div>
     {/if}
       </div>

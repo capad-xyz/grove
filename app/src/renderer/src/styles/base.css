@@ -1,0 +1,185 @@
+/**
+ * Base layer. Resets, the shared primitives every component leans on, and the
+ * state rules from DESIGN-SYSTEM.md §5 (state is brightness + rule, never hue).
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-list);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px var(--gap);
+}
+input::placeholder {
+  color: var(--text-ghost);
+}
+input:focus {
+  outline: none;
+  border-color: var(--line-strong);
+}
+
+/* --- Section labels. Uppercase, faint, structural. --- */
+.label {
+  font-size: var(--fs-label);
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* --- Rows. The core primitive: hover and selection are brightness + a 2px
+   left rule, never a hue. The transparent border reserves the rule's space so
+   selecting a row cannot shift its contents sideways (§7: layout never moves). --- */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  height: var(--row);
+  padding: 0 var(--pad);
+  border-left: 2px solid transparent;
+  cursor: default;
+  transition:
+    background-color 120ms var(--ease),
+    color 120ms var(--ease);
+}
+.row:hover {
+  background: var(--surface-raised);
+}
+.row[data-selected='true'] {
+  background: var(--surface-raised);
+  border-left-color: var(--line-strong);
+}
+.row:focus-visible {
+  outline: none;
+  border-left-color: var(--line-strong);
+  color: var(--text);
+}
+
+/* --- "Changed under you": brightness flash that decays. No movement. --- */
+@keyframes grove-flash {
+  from {
+    background-color: var(--accent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.flash {
+  animation: grove-flash var(--flash) var(--ease);
+}
+
+/* --- Scrollbars: present but recessive. A bright scrollbar in a docked strip
+   is a surprising amount of visual noise — but an invisible one is worse than
+   an ugly one, because a scrollbar is a control before it is decoration.
+
+   So the split is between *reading* and *reaching*: what you see is a 5px rule,
+   which is chrome (§1 — Grove is never the brightest thing on the screen); what
+   you can hit is the full 11px, because the pointer should not have to be
+   accurate about it. The transparent border plus `background-clip: padding-box`
+   is what buys both from one element — the border is part of the scrollbar's
+   box, so it is grabbable, and it lets the panel behind show through, so it is
+   not seen.
+
+   Brightness carries state here exactly as it does on a row (§5). Three steps,
+   all greyscale: --line at rest, --line-strong once the pointer is anywhere in
+   the scrolling region, --text-faint on the thumb itself. Nothing about a
+   scrollbar is content, so nothing about it gets a hue. --- */
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+/* No track and no corner. A rail drawn behind the thumb doubles the amount of
+   chrome a scrollbar contributes and says nothing the thumb does not; the
+   corner is the square where two bars meet, which the diff pane has because it
+   scrolls both ways. */
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* No arrows. They are two more targets nobody aims at, and they put a stepper
+   at each end of a list Grove already navigates with j/k (§8). */
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--line);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 11px;
+  /* A hundred-commit history makes a thumb a few px tall, which is a target
+     nobody can grab. This is roughly one row. */
+  min-height: 24px;
+  min-width: 24px;
+  transition: background-color 120ms var(--ease);
+}
+/* Hovering the region it scrolls, not the thumb: the bar brightens as your hand
+   arrives in the pane, so it is already findable by the time you look for it.
+   This has to precede the thumb's own :hover — equal specificity, so source
+   order decides which brightness wins. */
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+}
+*::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--text-faint);
+}
+
+/* Chromium is the engine Grove actually ships on, and the rules above are the
+   ones it runs. These are here so the renderer still degrades to something
+   quiet in a browser that has no `::-webkit-scrollbar` — served behind
+   `@supports` rather than beside them, because where both are understood the
+   precedence between the two systems is engine-specific, and one system
+   applying per engine is the only version of this that is predictable. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+}
+
+.scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

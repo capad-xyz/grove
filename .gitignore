@@ -1,12 +1,17 @@
 # Node / frontend
 node_modules/
 dist/
+out/
 .svelte-kit/
 build/
+
 *.local
 .env
 .env.*
 !.env.example
+
+# Packaged desktop builds (electron-builder)
+release*/
 
 # Rust / Tauri
 target/

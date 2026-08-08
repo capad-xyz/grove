@@ -3,6 +3,8 @@
 //! - `write` : mutations shell out to the user's `git` binary
 
 pub mod read;
+pub mod service;
+pub mod watch;
 pub mod write;
 
 use serde::{Deserialize, Serialize};
@@ -21,7 +23,7 @@ pub struct RepoSummary {
 
 /// One commit in the graph. Lane layout is computed on the frontend from the
 /// parent links.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct CommitNode {
     pub id: String,
     pub short: String,
@@ -76,14 +78,14 @@ pub struct DirListing {
 }
 
 /// One changed file in the working tree (staged or unstaged group).
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct FileStatus {
     pub path: String,
     pub status: String,
 }
 
 /// The working-tree state: staged, unstaged, and untracked files.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct WorkingStatus {
     pub staged: Vec<FileStatus>,
     pub unstaged: Vec<FileStatus>,
@@ -110,7 +112,7 @@ pub struct GrepHit {
 }
 
 /// One linked working tree of a repository.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Worktree {
     pub path: String,
     pub branch: Option<String>,

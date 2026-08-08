@@ -3,7 +3,7 @@
   import DiffView from "./DiffView.svelte";
   import Skeleton from "./Skeleton.svelte";
 
-  let { path, tick = 0, onchanged } = $props();
+  let { path, pushed = null } = $props();
 
   let status = $state(null);
   let loading = $state(true);
@@ -55,26 +55,37 @@
 
   const statusLabel = { M: "modified", A: "added", D: "deleted", R: "renamed", C: "copied", "?": "untracked" };
 
-  // Reload status on open and whenever live refresh ticks.
+  function applyStatus(s) {
+    status = s;
+    loading = false;
+    // keep the current selection valid, else clear the diff
+    if (sel && !stillPresent(s, sel)) {
+      sel = null;
+      patch = "";
+      untracked = "";
+    } else if (sel) {
+      loadDiff(sel);
+    }
+  }
+
+  // Initial load when the panel opens; afterwards the backend pushes status
+  // whenever the working tree or index changes (see state/repo.svelte.js).
   $effect(() => {
     const p = path;
-    tick;
     loading = true;
     error = "";
     invoke("working_status", { path: p })
-      .then((s) => {
-        status = s;
-        // keep the current selection valid, else clear the diff
-        if (sel && !stillPresent(s, sel)) {
-          sel = null;
-          patch = "";
-          untracked = "";
-        } else if (sel) {
-          loadDiff(sel);
-        }
-      })
+      .then(applyStatus)
       .catch((e) => (error = String(e)))
       .finally(() => (loading = false));
+  });
+
+  let appliedPush = null;
+  $effect(() => {
+    const s = pushed;
+    if (!s || s === appliedPush) return;
+    appliedPush = s;
+    applyStatus(s);
   });
 
   function stillPresent(s, sel) {
@@ -111,11 +122,12 @@
     } catch {}
   }
 
+  // After a write the backend pokes its refresh service, which pushes the new
+  // status. The local reload() is a fallback for when live watch is off.
   async function act(cmd, args) {
     try {
       await invoke(cmd, { path, ...args });
       await reload();
-      onchanged?.();
     } catch (e) {
       error = String(e);
     }
@@ -138,7 +150,6 @@
       sel = null;
       patch = "";
       await reload();
-      onchanged?.();
     } catch (e) {
       error = String(e);
     } finally {

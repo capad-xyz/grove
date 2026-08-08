@@ -1,0 +1,55 @@
+# Packaging config. Kept as YAML rather than a block in package.json so the
+# decisions can carry their reasons.
+
+appId: fyi.capad.grove
+productName: Grove
+copyright: Copyright (c) 2026 capad. GPL-3.0-or-later.
+
+directories:
+  output: release
+  # Not electron-builder's default `build/`: the repo's .gitignore ignores that
+  # name (it was the old Svelte output), so an icon placed there would silently
+  # never be committed and packaged builds elsewhere would lose it.
+  buildResources: packaging
+
+# `out/` is the electron-vite bundle. Production dependencies are resolved and
+# copied by electron-builder itself, which is what carries `@grove/engine` in —
+# it is a `file:` dependency, so npm links it and electron-builder dereferences
+# the link when packing. Source maps are excluded; they roughly double the
+# payload and are of no use in a shipped build.
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+  # The engine ships as its built `dist/`. Its TypeScript source, tests and
+  # tsconfigs would otherwise ride along for no reason.
+  #
+  # Note the exclusions are specific: `*.json` here would take package.json
+  # with them, and without that Node cannot resolve `@grove/engine` at all —
+  # the packaged app dies on its first require with no other symptom.
+  - '!node_modules/@grove/engine/src/**'
+  - '!node_modules/@grove/engine/tsconfig*.json'
+  - '!node_modules/@grove/engine/README.md'
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-win-${arch}.${ext}
+
+nsis:
+  # A git client is the kind of tool people want on a specific drive, and
+  # installing per-user avoids demanding admin rights for a desktop app.
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  category: public.app-category.developer-tools
+  target: [dmg]
+
+linux:
+  category: Development
+  target: [AppImage]
