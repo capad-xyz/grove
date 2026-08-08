@@ -1,6 +1,6 @@
 {
   "name": "@grove/app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Grove's Electron shell: window lifecycle, the hardened IPC bridge, and the renderer.",
   "private": true,
   "author": "capad <oss@capad.fyi>",

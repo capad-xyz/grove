@@ -2,15 +2,15 @@
 
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
-[![Built with](https://img.shields.io/badge/built%20with-Tauri%20%2B%20Svelte-ff3e00.svg)](#stack-at-a-glance)
+[![Built with](https://img.shields.io/badge/built%20with-Electron%20%2B%20React-47848f.svg)](#stack-at-a-glance)
 
 A featherweight Git companion that sits beside your AI coding editor and gives
 you the commit, diff, and worktree review surface those editors treat as an
 afterthought. Read-first and beautiful: open any folder and instantly see the
-graph, diffs, stash, status, and every in-flight worktree, refreshing live as
-the agent changes things under you. Make **small fixes inline**, and use
-**whatever AI agent you already run** for commit messages and PR drafts.
-Genuinely free, no subscription, no vendor-locked AI.
+graph, diffs, status, and every in-flight worktree, refreshing live as the agent
+changes things under you. Make **small fixes inline**, and use **whatever AI
+agent you already run** for commit messages and PR drafts. Genuinely free, no
+subscription, no vendor-locked AI.
 
 > Working name. Easy to rename before the first public push.
 
@@ -47,32 +47,109 @@ Grove's wedge is the combination almost nobody does well:
 
 ## Status
 
-Pre-alpha. The app scaffold builds and runs: a Tauri 2 + Svelte 5 shell with a
-Rust core that opens a folder and reports whether it is a git repo (the first
-slice of the read path). The v0 hero features (worktree dashboard, commit graph,
-diff review, live refresh) are next. See [DESIGN.md](DESIGN.md) for the
-architecture and decisions.
+Pre-alpha, and honest about it. Grove was re-authored off Tauri + Svelte onto
+Electron + React + TypeScript, with the git engine ported from Rust to Node.
+The full list of what landed is in [CHANGELOG.md](CHANGELOG.md).
+
+**Works today.** Open any repository (native chooser, drag-and-drop, typed path,
+or clone), browse a virtualised commit list with a real lane-drawn graph, read
+diffs with find-in-diff and a rendered Markdown preview, stage and unstage and
+commit, draft a commit message with a local CLI agent, search
+files/branches/commits/contents from one field, and see a
+"since you last looked" boundary that means *since this window last had focus*.
+Images render inside the diff, video and audio play, and anything else binary is
+described rather than decoded. It refreshes live as an agent writes to the repo,
+it is drivable from the keyboard, and it packages into an installer.
+
+**Not built yet.** No stash surface. No blame UI (the engine has `blame`;
+nothing consumes it). No inline editing. The worktree strip lists worktrees but
+cannot add, remove, prune, or switch. The agent layer has the local-CLI backend
+only — no API-key backend, and the command is not configurable from the
+interface. The commit list loads a fixed 200 commits. There is no settings
+surface, no code signing, no auto-updater, and no CI. Builds and measurements so
+far are Windows-only.
+
+For the product thesis and the v0 scope, see [DESIGN.md](DESIGN.md) — note that
+its "locked decisions" table predates the re-author and still describes the
+Tauri stack. For how the interface looks and why every value is what it is, see
+[app/DESIGN-SYSTEM.md](app/DESIGN-SYSTEM.md), which is the source of truth for
+the UI.
 
 ## Running it
 
-Prerequisites: Rust, Node 18+ (Node 22.12+ recommended), and on Windows the
-MSVC C++ build tools plus the WebView2 runtime.
+Prerequisites: **Node 22.18+** and **`git` on `PATH`** — git is a runtime
+requirement, not just a build one, because every operation shells out to it.
+Nothing else. Rust, the MSVC build tools, and the WebView2 runtime are only
+needed for the retained Tauri tree.
 
-    npm install
-    npm run tauri dev
+    cd engine && npm install
+    cd ../app && npm install
+    npm run dev
 
-The first Rust build compiles Tauri and gix and takes several minutes; later
-builds are incremental.
+`npm run dev` builds the engine first, then starts Vite and Electron with HMR in
+the renderer.
+
+All the app commands, from `app/`:
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server + Electron, HMR in the renderer |
+| `npm run dev:renderer` | Renderer only, in a browser, on fixtures (fast design loop, pinned to 127.0.0.1:5180) |
+| `npm run check` | Typecheck (3 configs) + the 85 renderer tests |
+| `npm run smoke` | 25 headless end-to-end checks that drive the real bridge |
+| `npm run build` | Cleans `out/`, then builds engine + main + preload + renderer |
+| `npm run package:dir` | Unpacked build into `release/`, no installer |
+| `npm run package` | Full installer for the host platform |
+
+And from `engine/`, `npm run check` typechecks and runs the 45 engine tests.
+They run straight off the TypeScript source via Node's type-stripping, so there
+is no build step for the test suite.
+
+`npm run smoke` is the one that matters. It drives the real path — page script
+calls `window.grove.*`, which crosses contextBridge → ipcRenderer → ipcMain →
+engine and back — with the window hidden so it never steals focus, and it
+asserts that `require`, `process`, and `module` are absent from the renderer.
+Its write checks run against a throwaway repository created per run, never the
+one you point it at.
+
+If `npm install` in `app/` finishes but Electron fails to start with
+`Error: Electron uninstall`, its binary did not download: run
+`node node_modules/electron/install.js`.
+
+## Project layout
+
+    engine/       @grove/engine — the headless git engine. Spawns `git`, parses
+                  stdout, classifies watcher events, coalesces refreshes. No UI.
+    app/          The Electron shell: main process, the hardened preload bridge,
+                  and the React renderer.
+    src-tauri/    The original Rust core. Retained, untouched since the port, as
+                  the reference implementation.
+    src/          The original Svelte 5 frontend. Retained for the same reason.
+    DESIGN.md     Thesis, positioning, v0 scope. Predates the re-author.
+    RUNBOOK.md    Operational notes — still written against the Tauri build.
+    CHANGELOG.md  What changed, with the numbers.
+
+The engine knows nothing about Electron and the renderer knows nothing about
+Node: the renderer reaches the engine only through `window.grove`, and only
+through the `data/source.ts` seam, which serves fixtures when there is no
+bridge.
 
 ## Stack at a glance
 
-- Shell: Tauri (Rust core + web frontend, small binaries)
-- Frontend: Svelte
-- Git engine: hybrid - `gix` (gitoxide) for fast reads, the user's `git` CLI
-  for writes and not-yet-covered operations
-- Commit graph: custom canvas/SVG renderer (the look is the point)
-- Quick edits: Monaco, scoped to small fixes only
-- Agent layer: one interface, two backends (local CLI + bring-your-own API key)
+- Shell: Electron 43 — sandboxed renderer, context isolation, a preload bridge
+  typed as `GroveApi` so a missing method is a compile error
+- Frontend: React 19 + TypeScript
+- Git engine: the user's own `git` binary, spawned and parsed. Repository
+  discovery is an in-process upward walk; there is no native dependency
+- Commit graph: custom SVG renderer, one small SVG per row (the look is the point)
+- Agent layer: one interface, local CLI backend today (`claude -p` by default),
+  API-key backend still to come
+
+Grove renders diffs and commit messages from repositories it did not write and
+cannot vet, so the renderer is locked down hard: `nodeIntegration: false`,
+`app.enableSandbox()` process-wide, a CSP on every response, popups denied,
+`http(s)` links handed to the real browser, in-place navigation blocked, and
+every permission request refused.
 
 ## License
 

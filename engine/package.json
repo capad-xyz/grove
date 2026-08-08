@@ -1,6 +1,6 @@
 {
   "name": "@grove/engine",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Grove's git engine: spawns the user's git binary and turns its output into typed repo state. Headless — no UI, no Electron.",
   "private": true,
   "type": "module",

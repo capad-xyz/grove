@@ -1,310 +1,551 @@
 # Grove Runbook
 
-Grove is a desktop Git companion (Tauri 2 + Svelte 5 + a Rust core) meant to sit
-beside an AI coding editor and give you the commit graph, diff review, status and
-worktree surfaces those editors treat as an afterthought. It is a local desktop
-app: no server, no database, no accounts, no network backend. Status is pre-alpha
-and single-developer; the app builds and runs, and the current branch `reauthor`
-is mid-way through an engine restructure. This runbook is the operational layer:
-how to get it building, running, committed and packaged on Windows. For the
-product thesis and architecture decisions read [DESIGN.md](DESIGN.md); for the
-public pitch read [README.md](README.md).
+Grove is a desktop Git companion meant to sit beside an AI coding editor and give
+you the commit graph, diff review, status and worktree surfaces those editors
+treat as an afterthought. It is a local desktop app: no server, no database, no
+accounts, no network backend.
 
-## Stack
+**It is now Electron + React + TypeScript.** The Tauri 2 + Svelte 5 shell that
+this runbook used to document is still in the tree as the reference
+implementation, but it is not what you build. Status is pre-alpha and
+single-developer, on branch `reauthor`.
 
-- Desktop shell: **Tauri 2**. Confirmed three ways: `tauri = { version = "2" }`
-  in `src-tauri/Cargo.toml`, `@tauri-apps/cli ^2.11.3` and `@tauri-apps/api
-  ^2.11.1` in `package.json`, and `"$schema":
-  "https://schema.tauri.app/config/2"` in `src-tauri/tauri.conf.json`. Tauri 1
-  guides do not apply: config keys, the permissions model and the CLI all differ.
-- Frontend: **Svelte 5** (`svelte ^5.56.4`) with `@sveltejs/vite-plugin-svelte
-  ^5.1.1`. Uses Svelte 5 runes (`src/state/repo.svelte.js`, `src/diffwrap.svelte.js`).
-- Bundler / dev server: **Vite 6** (`vite ^6.4.3`), config in `vite.config.js`.
-- Language on the frontend: **plain JavaScript, not TypeScript**. `jsconfig.json`
-  sets `checkJs: true`, so editors type-check JS via JSDoc, but there is no `tsc`
-  step and no TypeScript dependency.
-- Rust core: edition **2021** (`src-tauri/Cargo.toml`). No `rust-toolchain.toml`
-  is pinned, so it builds on whatever `rustup` default you have. Verified working
-  on this machine with `rustc 1.96.0` / `cargo 1.96.0`, host triple
-  `x86_64-pc-windows-msvc`.
-- Rust crate layout: package `grove`, library `grove_lib`, crate types
-  `staticlib`/`cdylib`/`rlib` (the mobile-friendly Tauri 2 layout). `main.rs` is a
-  two-line shim that calls `grove_lib::run()`.
-- Key Rust deps: `gix 0.85.0` (fast reads), `notify 8.2.0` (filesystem watch),
-  `tokio 1` (features `sync`, `time`), `anyhow 1.0.102`, `serde` + `serde_json`.
-- Git engine: hybrid by design. `gix` for reads, the user's installed **`git` CLI**
-  shelled out for writes (`src-tauri/src/repo/write.rs`). `git` on PATH is a
-  runtime requirement, not just a build one.
-- Package manager: **npm**, `package-lock.json` present (`lockfileVersion: 3`).
-  Rust side has `src-tauri/Cargo.lock` committed.
-- Node: no `engines` field, no `.nvmrc`, no `.npmrc` anywhere in the repo.
-  README asks for Node 18+, recommends 22.12+. Verified working here on
-  **Node v24.16.0 / npm 11.13.0**.
-- Database: none. Key services: none. Nothing talks to a network API.
-- App identity: productName `Grove`, bundle identifier `com.capad.grove`,
-  version `0.1.3` (kept in sync across `package.json`, `src-tauri/Cargo.toml`
-  and `src-tauri/tauri.conf.json`).
+This is the operational layer: how to install, run, test, build and package it on
+Windows, and what a real release would still need. For the product thesis read
+[DESIGN.md](DESIGN.md); for the shell's security posture and internals read
+[app/README.md](app/README.md); for the git engine read
+[engine/README.md](engine/README.md).
+
+> Note on the sibling docs: `README.md` and `DESIGN.md` at the repo root still
+> describe the Tauri shell (the README badge still says "Tauri + Svelte"). They
+> have not been re-authored yet. Where they disagree with this file about how to
+> build or run Grove, this file is the current one.
+
+## The three trees
+
+| Path | Package | Version | What it is |
+|---|---|---|---|
+| `engine/` | `@grove/engine` | 0.1.0 | The git engine, headless. Spawns the user's `git` and parses it. ESM (`"type": "module"`). Phase 1 of the move off Tauri. |
+| `app/` | `@grove/app` | 0.1.0 | The Electron shell: main process, preload bridge, renderer. Phase 3. Deliberately has **no** `"type"` field — see the CommonJS-preload trap below. |
+| `src/` + `src-tauri/` | `grove` (root `package.json`) | 0.1.3 | The legacy Tauri 2 + Svelte 5 app. Still builds; kept as the reference implementation until the React frontend reaches parity. |
+
+`app` depends on `engine` through `"@grove/engine": "file:../engine"`, so npm
+symlinks it and electron-builder dereferences the link when packing. There are no
+npm workspaces — each package installs separately, engine first.
+
+Three version numbers that are not related to each other, and no rule saying
+which one a release is named after. See "Not ready for public release".
 
 ## Prerequisites
 
-The author's machine is Windows 11, PowerShell primary, Git Bash available. All
-five items below were verified present on that machine; versions listed are what
-is actually installed and known-good.
+Verified on the author's machine: Windows 11, PowerShell primary, Git Bash
+available.
 
-1. **MSVC C++ build tools.** This is the single biggest cause of a failed first
-   Tauri build on Windows. Rust's `x86_64-pc-windows-msvc` target links with
-   `link.exe`, which ships with Visual Studio Build Tools, not with rustup.
-   Verified here: `C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.42.34433\bin\Hostx64\x64\link.exe`.
-   Install via the Visual Studio Installer, workload **"Desktop development with
-   C++"** (the "MSVC v143 build tools" plus "Windows 11 SDK" components are the
-   parts that matter).
-
-```powershell
-winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--quiet --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
-```
-
-2. **WebView2 runtime.** Tauri renders the UI in the Edge WebView2 control. It is
-   preinstalled on Windows 11, so on this machine nothing was needed. Verified
-   installed: version `150.0.4078.105`. On Windows 10 or a stripped image you must
-   install the Evergreen runtime yourself, otherwise the app process starts but
-   the window is blank.
-
-```powershell
-winget install --id Microsoft.EdgeWebView2Runtime
-```
-
-3. **Rust toolchain via rustup, MSVC flavour.** The target must be
-   `x86_64-pc-windows-msvc`, NOT `...-windows-gnu`. Verified here: default host
-   `x86_64-pc-windows-msvc`, single installed toolchain
-   `stable-x86_64-pc-windows-msvc`, installed target `x86_64-pc-windows-msvc`.
-
-```powershell
-winget install --id Rustlang.Rustup
-```
-
-Confirm the toolchain is the MSVC one before building:
-
-```powershell
-rustup show
-```
-
-4. **Node.js 18+ (22.12+ recommended, 24.x verified working) and npm.**
+1. **Node.js and npm.** `engine/package.json` declares `"node": ">=22.18"`, which
+   is the floor for running TypeScript tests unflagged through Node's type
+   stripping. Verified working here on **Node v24.16.0 / npm 11.13.0**. `app`
+   declares no `engines` field; follow the engine's floor.
 
 ```powershell
 winget install --id OpenJS.NodeJS.LTS
 ```
 
-5. **Git CLI on PATH.** Required at runtime, not only for cloning: every write
-   path (stage, unstage, commit) and several reads shell out to `git`. Verified
-   here: `git version 2.47.1.windows.1`.
+2. **Git CLI on PATH.** A runtime requirement, not just a build one. The engine
+   spawns the user's `git` binary for every operation — `engine/src/git.ts` is
+   the only place that spawns it, and everything else goes through there.
+   Verified here: `git version 2.47.1.windows.1`.
 
 ```powershell
 winget install --id Git.Git
 ```
 
-Not needed: WSL, Docker Desktop, Android SDK, any database server. Grove builds
-natively on Windows.
+3. Optional, only for the "generate commit message" feature: an agent CLI on
+   PATH. `engine/src/agent.ts` defaults to `claude -p` and pipes the staged diff
+   to its stdin; on Windows it goes through `cmd /C` so npm-installed shims
+   (`claude.cmd`) resolve. Any CLI that reads a prompt on stdin works. Nothing
+   else depends on it, and the feature degrades to an error message when the
+   command is missing.
 
-Optional, only for the "generate commit message" feature: a `claude` CLI on PATH.
-`src-tauri/src/agent/mod.rs` defaults to running `claude -p` and piping the staged
-diff to its stdin. Nothing else in the app depends on it, and the feature degrades
-to an error message if the command is missing.
+**Not needed for the Electron app: Rust, rustup, MSVC C++ build tools, WebView2.**
+Those are prerequisites for the legacy Tauri shell only (see the last section).
+Also not needed: WSL, Docker, any database.
 
-Disk: budget roughly **12 GB free**. The Rust build cache alone
-(`src-tauri/target`) is **11 GB** on this machine; `node_modules` is 65 MB.
+Disk: `app/node_modules` is the heavy item (Electron ships a full Chromium).
+Budget a couple of GB for `app/node_modules` + `out/` + `release/`. The 11 GB
+`src-tauri/target` cache only grows if you build the legacy shell.
 
 ## First-time setup
 
-1. Clone the repo.
+Order matters: `app`'s `predev`/`prebuild` hooks shell into `engine` and run its
+build, so the engine's own devDependencies (TypeScript) must be installed first.
+
+1. Clone and enter the repo.
 
 ```bash
 git clone https://github.com/capad-xyz/grove.git
 ```
 
-2. Enter it.
+2. Install the engine.
 
 ```bash
-cd grove
+npm --prefix engine install
 ```
 
-3. Install frontend dependencies. Use `npm ci` for an exact lockfile install.
+`chokidar` lands in `engine/node_modules`, not in `app/node_modules` — the app
+reaches it through the symlink. Do not be alarmed by its absence over there.
+
+3. Install the app.
 
 ```bash
-npm ci
+npm --prefix app install
 ```
 
-Success signal: npm prints `added <N> packages` and exits 0, and a
-`node_modules/` directory plus `node_modules/.bin/vite` now exist. The lockfile
-holds 116 package entries, but the installed count is lower (about 100) because
-the platform-specific rollup and esbuild binaries for other operating systems are
-skipped. There are no postinstall scripts in this project, so `--ignore-scripts`
-is not a concern here.
-
-4. No environment file step. There is no `.env`, no `.env.example`, and nothing
-   reads a project-specific env var. Skip straight to building.
-
-5. No database and no seed step. Grove reads whatever Git repository you point it
-   at, at runtime.
-
-6. Do the first full build. **This is the slow one: expect 10+ minutes** and do
-   not interrupt it.
+4. **Verify Electron's binary actually downloaded.** This step exists because it
+   sometimes silently does not — see the traps section.
 
 ```bash
-npm run tauri dev
+node -e "console.log(require('fs').readFileSync('app/node_modules/electron/dist/version','utf8'))"
 ```
 
-Success signal, in this order: Vite prints `VITE v6.4.3 ready in ~1.7s` and
-`Local: http://localhost:7420/`; then `Compiling grove v0.1.3`; then a
-`Building [===> ] 475/477` progress bar that sits there for several minutes;
-then `Finished \`dev\` profile [unoptimized + debuginfo] target(s)`; then
-`Running \`target\debug\grove.exe\`` and a native window titled "Grove" opens at
-1100x720. A wall of `[vite-plugin-svelte] ... a11y_...` warnings after the window
-appears is normal and is not a failure (see Gotchas).
+Expected: a version string, `43.3.0` at time of writing. If the file is missing,
+run `node node_modules/electron/install.js` from inside `app/`.
 
-Verified timings from the checked-in build logs on this machine: a cold build
-took **8m 29s** (`src-tauri/_build.log`), and incremental Rust rebuilds after a
-one-line change took **1m 01s** and **1m 10s** (`src-tauri/_build.log`,
-`src-tauri/_dev.log`). Those logs predate the `tokio` and `notify` dependencies,
-so a true cold build today is realistically **10 to 14 minutes**.
+5. No environment file step. There is no `.env`, no `.env.example`, and nothing
+   project-specific is read from the environment. The one variable that matters,
+   `ELECTRON_RENDERER_URL`, is set by `electron-vite dev` itself and is how the
+   main process knows it is in dev mode (`app/src/main/index.ts`).
 
-## Environment variables
+6. No database, no seed step, no secrets. **There are no credentials in this
+   repository and none are required to build, run, test or package it.**
 
-Grove has effectively no configuration surface. There is no `.env`, no
-`.env.example`, no `VITE_*` variable anywhere in `src/`, and no config loader.
-The complete set of variables the code touches:
+## Local dev loop
 
-| Name | Required? | What it is | Where to get it | Example / placeholder |
-|---|---|---|---|---|
-| `TAURI_DEV_HOST` | No | Read in `vite.config.js`. When set, Vite binds the dev server to that host instead of localhost and switches HMR to `ws://<host>:7421`. Intended for testing from another device on the LAN. Unset for normal desktop work. | You choose it: your machine's LAN IP. | `192.168.1.20` |
-| `USERPROFILE` | No (OS-provided) | Read in `src-tauri/src/lib.rs` and `repo/read.rs` to locate the user's home directory for the folder picker and recent-repos list. | Set by Windows automatically. | `C:\Users\<you>` |
-| `HOME` | No (OS-provided) | Fallback used only when `USERPROFILE` is absent (i.e. non-Windows). | Set by the OS automatically. | `/home/<you>` |
+All commands below are written from the repo root using `npm --prefix`. Run them
+from inside `app/` or `engine/` without the prefix if you prefer.
 
-**There are no secrets in this repository, and none are required to build or run
-it.** No API keys, tokens, passwords or connection strings exist in the tree, and
-nothing needs to be provisioned before first run. If the bring-your-own-API-key
-agent backend described in DESIGN.md section 3 is ever implemented, that design
-specifies keys live in the OS keychain via the Tauri keychain plugin and never in
-plaintext config or a committed file. Keep it that way.
-
-## Running it
-
-All commands run from the repo root. Scripts are exactly the four in
-`package.json`; there are no others.
-
-**Full desktop app with hot reload.** This is the normal way to work. It runs
-`npm run dev` first (Tauri's `beforeDevCommand`), waits for the Vite server on
-port 7420, then compiles and launches the Rust binary. Frontend edits hot-reload
-instantly; Rust edits trigger a full recompile and relaunch of the window.
+**The normal loop — full Electron app with renderer HMR.**
 
 ```bash
-npm run tauri dev
+npm --prefix app run dev
 ```
 
-**Frontend only, in a normal browser, on port 7420.** Much faster to start
-because it skips Rust entirely. Use it for pure CSS and layout work. Note the app
-will render but every Tauri IPC call fails, because there is no Rust backend
-behind it, so the graph, diffs, status and worktree panels will be empty or
-error out.
+`predev` builds the engine first (`npm --prefix ../engine run build`), then
+`electron-vite dev` starts a Vite dev server for the renderer, builds main and
+preload, and launches Electron pointed at that server. Renderer edits hot-reload.
+Edits to `src/main/**` or `src/preload/**` restart the Electron process.
+
+`electron.vite.config.ts` does not pin a port, so the renderer dev server takes
+electron-vite's default and hands its URL to the main process as
+`ELECTRON_RENDERER_URL`. The main process keys every dev-only relaxation off that
+variable rather than off `NODE_ENV`, so none of it can leak into a packaged
+build: the CSP's `'unsafe-inline'` for React Refresh, the widened `connect-src`
+for the HMR websocket, and the F12 / Ctrl+Shift+I devtools accelerator all exist
+only when `ELECTRON_RENDERER_URL` is set.
+
+**Engine edits do not hot-reload.** The main bundle keeps `@grove/engine`
+external and `require`s it at runtime from `engine/dist/`. After changing
+`engine/src/**`, rebuild the engine (`npm --prefix engine run build`) and restart
+the app, or just restart `npm run dev`, which rebuilds it via `predev`.
+
+Two things about the window itself, both deliberate:
+
+- **It is frameless.** `titleBarStyle: 'hidden'`, with `titleBarOverlay` (colour
+  `#0b0b0d`, symbol `#9a9a97`, height 34) on Windows and Linux and
+  `trafficLightPosition` on macOS. Grove's repo bar *is* the title bar. If you
+  are changing the top strip of the UI, the system controls are overlaid on it
+  and you must leave room for them.
+- **`grove-file://` streams working-tree files to the renderer.** Registered as a
+  privileged scheme at module scope in `app/src/main/index.ts` (it has to happen
+  before `app` is ready), handled after ready via `protocol.handle`. Media cannot
+  go through IPC as base64 — a 50MB video becomes a 67MB string copied across the
+  boundary — so the scheme streams from disk through `net.fetch`, which gives
+  `<video>` real range requests and therefore seeking. It is **confined to the
+  currently-open repository**: the handler reads `watchedRoot()` from
+  `app/src/main/ipc.ts`, resolves the request path against it, and rejects
+  anything that is not contained (403), plus 403 when no repository is open.
+  `..` cannot climb out because `resolve` collapses it before the prefix check.
+  The CSP allows the scheme in `img-src` and `media-src` only. **If you touch
+  that handler, you are touching the one place that turns a sandboxed renderer
+  into a disk reader.** Keep the containment check.
+
+Expect Electron to log every rejected `ipcMain.handle` to stderr. Errors the
+renderer handles correctly — a path that is not a repository, say — still show up
+there. That is not a failure.
+
+## Browser-only renderer harness
 
 ```bash
-npm run dev
+npm --prefix app run dev:renderer
 ```
 
-**Production frontend build.** Outputs static assets to `dist/`, which is what
-`frontendDist` in `tauri.conf.json` points at.
+Serves the renderer in a plain browser at **http://127.0.0.1:5180** with no
+Electron around it. `window.grove` is absent, so `src/renderer/src/data/source.ts`
+falls back to fixtures. This is the fast loop for design work: a browser refresh
+instead of an Electron relaunch. `.claude/launch.json` has this as the
+`grove-renderer` configuration with `autoPort: false`.
+
+The port is pinned with `strictPort: true` and bound to `127.0.0.1` rather than
+`::1`, both on purpose — see the Windows port trap below.
+
+Two harness-specific traps, both documented in `app/README.md`:
+
+- **A hidden browser tab gets its timers clamped by Chrome.** A 40ms
+  `setTimeout` was measured at 464ms. Poll for DOM changes when testing here
+  rather than sleeping, or you will read stale state and conclude the app is
+  broken.
+- **Editing `data/source.ts` leaves HMR holding a stale module instance.** Hard
+  reload before debugging anything that looks dead.
+
+## Tests and checks
+
+Nothing in this repo runs automatically. There is **no CI** — no `.github/`
+directory, no workflows, no required status checks. Pushing triggers nothing.
+Everything below is something a human runs.
+
+**Engine.**
 
 ```bash
-npm run build
+npm --prefix engine run check
 ```
 
-**Preview the built frontend** on Vite's default port 4173 (per
-`.claude/launch.json`, which allows auto-port here).
+`check` is `typecheck && test`: `tsc --noEmit` over everything including tests,
+then `node --test "src/**/*.test.ts"`. Tests run straight off the TypeScript
+source via Node's type stripping — no build step. 5 test files; the engine README
+puts the suite at 44 tests: pure-parser tests, watcher classification tests
+ported verbatim from the Rust, coordinator tests covering coalescing and change
+detection, and an integration suite that drives real `git` against a scratch
+repository.
+
+**Renderer and types.**
 
 ```bash
-npm run preview
+npm --prefix app run check
 ```
 
-**Release desktop build with installers.** Slow; this is an optimized Rust build
-plus bundling.
+`check` is `typecheck && test`.
+
+- `typecheck` runs `tsc --noEmit` over **three** configs: `tsconfig.node.json`
+  (main, preload, shared, and the electron-vite config), `tsconfig.web.json`
+  (renderer), and `tsconfig.test.json`. Note that `app/tsconfig.json` only
+  references the first two — the test config is picked up by the script, not by
+  the solution file, so `tsc -b` alone would miss it. Keeping this green is what
+  makes the preload's `GroveApi` typing load-bearing: a missing or misnamed
+  bridge method becomes a compile error.
+- `test` is `node --test "src/renderer/src/**/*.test.ts"` — 9 test files, all
+  pure renderer logic under `src/renderer/src/data/` and `src/renderer/src/styles/`.
+  It does **not** touch the engine and does **not** start Electron.
+
+**The bridge smoke check** — the one that would matter for CI.
 
 ```bash
-npm run tauri build
+npm --prefix app run smoke
 ```
 
-**Tests: none.** There is no test script, no test runner dependency, and no test
-files in the repo. `cargo test` in `src-tauri` compiles but has no tests to run.
+`electron-vite build && electron . --smoke`. It launches Electron with the window
+**hidden** (so it never steals focus, which matters when the author's real Grove
+is open) and drives the *real* path: page script calls `window.grove.*`, which
+crosses contextBridge → ipcRenderer → ipcMain → engine and back. It exits
+non-zero on any failure, printing `PASS`/`FAIL` per check.
 
-**Lint / typecheck / format: none configured.** No ESLint, no Prettier, no
-`svelte-check`, no `tsc`. `jsconfig.json` sets `checkJs: true`, so a JS-aware
-editor will surface type hints, but nothing enforces it in CI or on commit. The
-closest thing to a linter is `cargo clippy`, which is not wired into any script.
+What it covers, from `app/src/main/smoke.ts`:
 
-Ports in use: **7420** for the Vite dev server (pinned, `strictPort: true`),
-**7421** for HMR websockets but only when `TAURI_DEV_HOST` is set, **4173** for
-`npm run preview`.
+- The bridge is exposed at all, and the security posture holds — `window.require`,
+  `window.process` and `window.module` are all absent.
+- Read paths against Grove's own repository: `openRepo`, `commitGraph` (including
+  that a refspec actually narrows the result), `branches`, `workingStatus`,
+  `worktrees`, `commitDetail`, `fileHistory`, `allFiles`.
+- Spotlight's git-backed tiers: `searchCommits` and `grepRepo`, each checked both
+  for hits and for the miss case — `git grep` exits non-zero on no matches, and
+  that must read as "no hits", not as an error.
+- Errors propagate as messages, not as opaque rejections.
+- `workingFileBytes` round-trips a real PNG (`app/packaging/icon.png`) with its
+  magic bytes intact, and returns `null` for a missing file.
+- `watchRepo` emits live coordinator events, with a 20s ceiling.
+- **Write checks run against a throwaway repo in the temp directory**, never the
+  one you pass in: stage, unstage, stage-all, commit, and a clean-after-commit
+  assertion. If the scratch repo cannot be created the write checks are skipped
+  with a warning rather than failing.
 
-## Common startup failures
+`--smoke` with no path targets Grove's own repository (three levels up from the
+built main bundle). `--smoke=<path>` points it elsewhere; the read checks assume
+a repo that has `DESIGN.md` and commits mentioning "Engine", so a foreign repo
+will report failures that are not bugs.
 
-| Symptom (literal text where verified) | Cause | Fix |
-|---|---|---|
-| Build runs for minutes then dies at the link step. UNVERIFIED literal text, from memory not reproduced here: ``error: linker `link.exe` not found`` followed by ``note: program not found``. | MSVC C++ build tools are not installed. Rustup installs the compiler but never the Microsoft linker. | Install VS 2022 Build Tools with the "Desktop development with C++" workload (see Prerequisites step 1), then open a NEW shell so PATH is refreshed and rerun `npm run tauri dev`. |
-| The Rust build succeeds, `Running target\debug\grove.exe` prints, a window opens but is completely blank/white and stays that way. | WebView2 runtime missing (only happens on Windows 10 or a stripped Windows image; Windows 11 ships it). | Install the Evergreen WebView2 runtime (Prerequisites step 2). Verified present on this machine at version 150.0.4078.105. |
-| Vite refuses to start. UNVERIFIED literal text: `Error: Port 7420 is already in use`. Because `strictPort: true` in `vite.config.js`, Vite aborts instead of picking a free port. | A previous `npm run dev`, `npm run tauri dev`, or an orphaned `node.exe` still holds 7420. | Find and kill the holder: `Get-NetTCPConnection -LocalPort 7420` then `Stop-Process -Id <OwningProcess>`. Do NOT "fix" this by changing the port unless you also change `devUrl` (see next row). |
-| You change the Vite port in `vite.config.js`, and now `npm run tauri dev` hangs on `Waiting for your frontend dev server to start...` or opens a blank window. | `devUrl` in `src-tauri/tauri.conf.json` is hardcoded to `http://localhost:7420`. It is a second, separate source of truth for the port. | Change BOTH `vite.config.js` `server.port` and `tauri.conf.json` `build.devUrl` to the same value. |
-| You "restore" the port to Tauri's documented default 1420 and the dev server now fails to bind with a socket permission error, not an "in use" error. | VERIFIED on this machine: `netsh interface ipv4 show excludedportrange protocol=tcp` lists a reserved range **1375-1474**, which contains 1420. Hyper-V / WinNAT has reserved it, so binding is refused even though nothing is listening. This is exactly why `vite.config.js` uses 7420 and says so in a comment. | Leave the port at 7420. If you must change it, pick something outside every range that command prints (7420 is clear; the nearest reserved block is 7674-7773). |
-| Link errors, or crates failing with ABI//toolchain mismatches, on a machine where `link.exe` clearly exists. | The active rustup toolchain is the `-gnu` flavour instead of `-msvc`. Tauri on Windows expects MSVC. | `rustup show` to confirm, then `rustup default stable-x86_64-pc-windows-msvc`. Verified correct default on this machine. |
-| App builds and opens fine, the graph renders, but staging or committing fails at runtime. | `git` is not on PATH. Reads mostly go through `gix` (pure Rust, always works), but every write in `src-tauri/src/repo/write.rs` shells out to the real `git` binary. | Install Git for Windows and reopen the shell. Verified working here: git 2.47.1.windows.1. |
-| `npm run tauri dev` fails immediately during `Running BeforeDevCommand`, before any Rust compilation. | `node_modules` is missing or partial, so `vite` cannot be resolved. | `npm ci` from the repo root, then retry. |
-| First build looks frozen for many minutes at `Building [=======================> ] 475/477: grove`. | Not frozen. This is normal: a cold build compiles roughly 477 crates including all of Tauri and gix. VERIFIED at **8m 29s** in `src-tauri/_build.log`. | Wait it out. Check CPU is pegged if unsure. Never delete `src-tauri/target` to "fix" this; that guarantees another full cold build. |
-| VERIFIED literal, last line of `devlog.txt`: ``error: process didn't exit successfully: `target\debug\grove.exe` (exit code: 0xffffffff)`` | Benign. That is the Tauri CLI reporting the exit status after the app window was closed or the dev session was killed. 0xffffffff is -1, i.e. terminated. | Nothing to fix. Not a crash of the build. |
-| Dozens of lines of `[vite-plugin-svelte] src/X.svelte:NN `<div>` with a mousedown handler must have an ARIA role` and `a11y_click_events_have_key_events` scroll past on every start. | Svelte 5 accessibility WARNINGS, not errors. VERIFIED throughout `devlog.txt` and `src-tauri/_dev.log`; the app starts fine with all of them present. | Ignore them, or fix the a11y roles properly. They never block a build. |
-| `git status` shows `src-tauri/Cargo.toml` as modified, but `git diff` prints no hunks at all, only `warning: in the working copy of 'src-tauri/Cargo.toml', LF will be replaced by CRLF the next time Git touches it`. | VERIFIED: `core.autocrlf=true` is set globally and there is no `.gitattributes` in the repo, so line endings differ from the index with no content change. A phantom dirty file. | Harmless. Do not `git checkout` it reflexively, and do not stage it as part of an unrelated change. It is one of the pre-existing dirty entries in this working tree. |
-| Cargo fails mid-build with a disk space or "No space left on device" error, or the machine slows to a crawl during the first build. | `src-tauri/target` is **11 GB** on this machine, and a cold build peaks with many parallel `rustc` processes. On a 16 GB machine that is real memory pressure. | Free disk first. To cap memory during a build, limit parallelism: `cargo build -j 4` from `src-tauri`, or set `$env:CARGO_BUILD_JOBS = "4"` before `npm run tauri dev`. See Gotchas. |
+Two things `smoke` does *not* do, both visible in `package.json`: it calls
+`electron-vite build` directly rather than `npm run build`, so it **does not
+rebuild the engine** (no `prebuild` hook fires) and **does not clean `out/`**.
+Run `npm --prefix app run build` first if the engine changed or if you have
+renamed an entry point.
+
+## Building bundles
+
+```bash
+npm --prefix app run build
+```
+
+`prebuild` builds the engine (`tsc -p tsconfig.build.json` → `engine/dist/`),
+then `npm run clean && electron-vite build`. Output is `app/out/main/`,
+`app/out/preload/`, `app/out/renderer/`. `app/package.json`'s `"main"` points at
+`./out/main/index.js`.
+
+`clean` (`node -e "require('fs').rmSync('out',…)"`) exists because electron-vite
+does not clean, so a renamed or removed entry point keeps shipping. A stale
+`out/PROBE/` from a debugging session made it into a package before this was
+added.
+
+Run the built app without packaging it:
+
+```bash
+npm --prefix app start
+```
+
+That is `electron-vite preview` — the production bundle in a real Electron
+window, no dev server, no HMR, production CSP. This is the honest check of
+anything that behaves differently outside dev.
+
+Two structural facts about the bundle worth knowing before you change the config:
+
+- **The preload is CommonJS and must stay that way** — see the traps section.
+- **`@grove/engine` stays external in the main bundle.** It is left as a runtime
+  `require`, which works because Electron 43 ships Node 22 and supports
+  `require(esm)` for modules without top-level await, and the engine has none.
+  This is settled and it packages correctly; the engine does not need a CJS
+  build.
+
+## Packaging an installer
+
+Config is `app/electron-builder.yml`, kept as YAML rather than a block in
+`package.json` so the decisions can carry their reasons. `appId: fyi.capad.grove`,
+`productName: Grove`, `asar: true`, `directories.output: release`,
+`directories.buildResources: packaging`.
+
+`buildResources` is `packaging/`, not electron-builder's default `build/`,
+because the repo's `.gitignore` ignores `build/` (it was the old Svelte output) —
+an icon placed there would silently never be committed, and packaged builds
+elsewhere would lose it. The icon exists: `app/packaging/icon.png`, 512×512,
+generated by the committed `app/packaging/make-icon.mjs` (`node
+packaging/make-icon.mjs` regenerates it). `app/README.md` still says there is no
+icon; that note is stale.
+
+**Unpacked build, no installer.** Faster, and enough to check that the app runs
+outside the dev harness.
+
+```bash
+npm --prefix app run package:dir
+```
+
+`npm run build && electron-builder --dir` → `app/release/win-unpacked/`. This has
+been run on the author's machine; that directory (and a `release-app/` from an
+output-override run) exists locally.
+
+**Full installer for the host platform.**
+
+```bash
+npm --prefix app run package
+```
+
+`npm run build && electron-builder`. On Windows this produces the NSIS installer
+at `app/release/Grove-0.1.0-win-x64.exe`, from `artifactName:
+${productName}-${version}-win-${arch}.${ext}` and the version in
+`app/package.json`. **This has never been run.** No installer has been produced
+from the Electron codebase.
+
+The NSIS settings are chosen deliberately: `oneClick: false`, `perMachine: false`,
+`allowToChangeInstallationDirectory: true` — a git client is the kind of tool
+people want on a specific drive, and installing per-user avoids demanding admin
+rights for a desktop app.
+
+What goes in the package (`files`): `out/**/*` and `package.json`, minus
+`**/*.map` (source maps roughly double the payload and are useless in a shipped
+build), minus the engine's `src/`, `tsconfig*.json` and `README.md`. Production
+dependencies are resolved and copied by electron-builder itself, which is what
+carries `@grove/engine` in.
+
+**Do not "tidy" those exclusions into `*.json`.** It would take the engine's
+`package.json` with it, Node could then no longer resolve `@grove/engine`, and
+the packaged app dies on its first require with no other symptom. The exclusions
+are specific for exactly this reason.
+
+`release*/` is gitignored, so `release/`, `release-app/` and the `release-check`
+scratch output from the EBUSY workaround are all untracked.
+
+**macOS and Linux are configured but have never been built or run.**
+`mac: { category: public.app-category.developer-tools, target: [dmg] }` and
+`linux: { category: Development, target: [AppImage] }`. electron-builder cannot
+produce a usable signed macOS build from Windows; a dmg needs a macOS host, and
+an AppImage realistically needs a Linux host or container. Treat both as
+untested configuration, not as supported targets.
+
+## What a real release would require
+
+None of this is done. In rough order:
+
+1. **Decide what the version number is.** Right now `engine` is 0.1.0, `app` is
+   0.1.0, and the root Tauri package is 0.1.3. electron-builder takes the
+   installer's version from `app/package.json` alone. Nothing syncs, validates or
+   bumps any of them.
+2. **Code signing.** There is no `win.certificateSubjectName`, no
+   `certificateFile`, no signing block of any kind in `electron-builder.yml`, and
+   no macOS `identity`/notarization config. Without a certificate, SmartScreen
+   warns on every download until reputation accrues, which for an unsigned binary
+   is effectively never.
+3. **Auto-update.** No `publish` block, no update feed, no `electron-updater`
+   dependency. Shipping a fix today means every user manually downloading a new
+   installer, and there is no channel to tell them one exists.
+4. **Actually build and run the macOS and Linux targets** on their own hardware,
+   including whether the frameless window and `titleBarOverlay` behave (macOS
+   takes the `trafficLightPosition` branch instead), and whether the
+   `grove-file://` scheme and the `git` spawn paths hold up.
+5. **CI.** There is no `.github/`. At minimum: `npm --prefix engine run check`,
+   `npm --prefix app run check`, and `npm --prefix app run smoke` on every push —
+   smoke is the one that proves the bridge, and it runs headless with the window
+   hidden precisely so it can live in CI.
+6. **GPL-3.0-or-later obligations.** `LICENSE` is at the repo root and
+   `electron-builder.yml` carries the copyright line, but a distributed binary
+   must ship the licence text and a way to get the corresponding source. Nothing
+   currently packs `LICENSE` into the installer.
+7. **Somewhere to put the artifacts**, and a decision about what a "release"
+   means — GitHub Releases, a tag convention, and release notes. None exist.
+8. **A rollback story.** Today it is "reinstall the previous installer", and
+   there is no previous installer.
+
+## Known traps
+
+Verified against `app/README.md`, `app/vite.renderer.config.ts`,
+`app/electron.vite.config.ts` and the installed dependency metadata.
+
+- **`EBUSY: resource busy or locked` on `app.asar` when packaging.** This is
+  Windows Defender still scanning the file electron-builder just handed it, not a
+  corrupt build and not another process of yours. **It hits the first packaging
+  attempt frequently; a plain retry usually succeeds.** If you are iterating and
+  do not want to wait, build to a scratch output instead:
+
+```bash
+npm --prefix app run package -- -c.directories.output=release-check
+```
+
+  (`release-check` is covered by the `release*/` ignore rule, so it stays
+  untracked.)
+
+- **Electron's binary may not download on install.** `npm install` completes, but
+  the postinstall that fetches the Electron binary did not, and the first run
+  fails with `Error: Electron uninstall`. Fix it from inside `app/`:
+
+```bash
+node node_modules/electron/install.js
+```
+
+- **Vite must stay on 7.** `electron-vite@5.0.0` declares
+  `"vite": "^5.0.0 || ^6.0.0 || ^7.0.0"` as a peer dependency, so 7 is the
+  ceiling — verified in `app/node_modules/electron-vite/package.json`, not in the
+  README, which only mentions Vite 7 in passing. `app/package.json` pins
+  `"vite": "^7.3.6"`. A caret bump to 8 puts you outside the peer range and into
+  electron-vite's untested territory; wait for electron-vite to widen it. Related
+  behaviour already bitten under Vite 7: electron-vite's externalization ignores
+  `ssr.noExternal`, `resolve.alias` and `rollupOptions.external` overrides, which
+  is why `@grove/engine` is left external rather than bundled.
+
+- **The preload must stay CommonJS.** A sandboxed preload is loaded in a
+  restricted context with no ESM loader, so it cannot be an ES module. This is
+  mandatory, not a preference. Two things enforce it, and both must stay:
+  `electron.vite.config.ts` forces `output: { format: 'cjs' }` for the preload
+  build, and `app/package.json` has **no `"type"` field**, so a bare `.js` file
+  there means CommonJS. Adding `"type": "module"` to `app/package.json` breaks
+  the preload, and the symptom is a renderer with no bridge rather than an
+  obvious error.
+
+- **Windows reserves TCP port ranges, and a bind inside one fails with `EACCES`
+  that reads like a permissions problem but is not.** Hyper-V / WinNAT reserves
+  several ranges. Check before picking a port:
+
+```powershell
+netsh int ipv4 show excludedportrange protocol=tcp
+```
+
+  **The ranges are not stable across reboots.** `app/README.md` records Vite's
+  preview default 4173 sitting inside a reserved 4147–4246; the old Tauri runbook
+  records 1375–1474, which is why the Svelte dev server moved off 1420 to 7420.
+  Neither range is present on this machine today — the current list is entirely
+  different. So do not trust any range written down anywhere, including here: run
+  the command. `dev:renderer` pins **5180** and binds `127.0.0.1` rather than
+  `::1` for this reason, with `strictPort: true` so a collision fails loudly
+  instead of silently moving.
+
+- **`npm run smoke` skips the engine build and skips the clean.** It runs
+  `electron-vite build` directly, not `npm run build`, so no `prebuild` hook
+  fires. Stale `engine/dist/` means you are smoke-testing old engine code.
+
+- **Engine changes need an engine rebuild even in dev.** `@grove/engine` is
+  external to the main bundle and `require`d at runtime from `engine/dist/`.
+  Nothing watches it.
+
+- **The browser harness tab is hidden, so Chrome clamps its timers** (40ms
+  measured at 464ms). Poll for DOM changes rather than sleeping. Editing
+  `data/source.ts` also leaves HMR holding a stale module instance — hard reload
+  first.
+
+- **Electron logs every rejected `ipcMain.handle` to stderr.** Expected errors
+  appear there even when the renderer handled them correctly.
+
+- **`git status` lies about `src-tauri/Cargo.toml`.** `core.autocrlf=true` is set
+  globally and there is no `.gitattributes`, so it shows as modified with an
+  empty `git diff`. Harmless. Do not `git checkout` it reflexively and do not
+  sweep it into an unrelated commit.
+
+## Not ready for public release
+
+Stated plainly so nobody has to rediscover it:
+
+- **Nothing has ever been shipped in the Electron form.** No installer has been
+  produced. `package:dir` has been run; `package` has not.
+- **No code signing.** The installer would be unsigned. Windows SmartScreen will
+  show "Windows protected your PC" to every downloader, and there is no
+  reputation to accumulate against without a certificate. macOS would refuse an
+  unsigned, un-notarized app outright.
+- **No auto-update.** No publish target, no update feed, no `electron-updater`.
+  A shipped bug stays shipped until each user manually finds and installs a
+  replacement.
+- **macOS and Linux are configuration only.** `dmg` and `AppImage` targets are
+  declared and have never been built or run. Assume they are broken until proven
+  otherwise; they cannot be validated from the Windows dev machine.
+- **Version numbering is unresolved.** Three packages carry three unrelated
+  versions and nothing reconciles them.
+- **No CI, so nothing is verified on anything but the author's machine**, and no
+  release ever gets an automatic build.
+- **The renderer is a wiring harness, not a design.** `app/README.md` says it
+  outright: phase 4 deletes it and replaces it with the real design-first React
+  interface.
+- **GPL-3.0-or-later source-offer obligations are not wired into packaging.**
+
+Treat any build produced today as a developer artifact for the author's own
+machine.
 
 ## Committing
 
-- **Configured git identity for this repo** (verified with `git config`):
-  `user.name` is `capad.fyi` and `user.email` is `capad.xyz@gmail.com`. The
-  global values are `capad.io` / `capad.xyz@gmail.com`, so the name is
-  deliberately overridden per-repo. This is a personal project, so the personal
-  address is correct here; do not push work-account commits to it.
-- **Hooks: none.** `.git/hooks/` contains only the stock `.sample` files. There is
-  no husky, no lint-staged, no pre-commit framework, and no `prepare` script in
-  `package.json`. Nothing runs on commit, so nothing can block one, and there is
-  never a reason to reach for `--no-verify`.
-- **Default / integration branch: `main`.** It tracks `origin/main`.
-- **Current branch: `reauthor`**, which is **3 commits ahead of `origin/main` and
-  0 behind**. It is an in-progress "engine restructure" of the Rust core, done as
-  a numbered sequence: step 1 `Engine: refresh coordinator with typed events and
-  generation numbers` (adds `repo::service::RepoService`, rewrites the watcher,
-  makes all subprocess commands async), step 2 `Engine: lock hardening on the git
-  boundary` (adds `--no-optional-locks` to reads and index-lock retry with
-  100/300/800/1500ms backoff), step 3 `Engine: cheap heavy-repo wins`
-  (concurrent per-worktree status, cheaper untracked-file walking, a batched
-  `repos_dirty` command, background `git commit-graph write`). At the time of
-  writing `reauthor` has never been pushed; it had no upstream.
-- **Branch naming**: mostly work directly on `main` plus occasional
-  topic branches. Observed remote branch: `chore/contact-and-readme`, i.e.
-  `type/short-kebab-description`. The local `reauthor` is a bare noun, so the
-  convention is loose.
-- **Commit message style**: two distinct styles in the log. Chores use
-  conventional-commit prefixes (`chore: capad contact identity + README badges
-  (#1)`). Feature work uses a sentence-style imperative summary, often with an
-  area prefix and a semicolon-joined pair of changes, e.g. `Engine: lock
-  hardening on the git boundary`, `Perf: tame the watcher, defer refresh under
-  input, fewer git calls; 0.1.2`, `Ctrl+F in the diff modal; clamp resizers to
-  stay in view`. Version bumps get appended to the summary rather than getting
-  their own commit. Bodies, when present, are `-` bullet lists explaining the
-  what and the why, and often end with a note about what was deliberately
-  deferred.
-- **Do not add `Co-Authored-By` trailers.** Some older commits on this branch
-  carry them; new commits should not.
-- The working tree currently has unrelated in-progress items: the phantom-CRLF
-  `src-tauri/Cargo.toml`, plus untracked `.claude/` and `.coderabbit.yaml`. Stage
-  files explicitly by path. Never `git add -A`, `git add .`, or `git commit -a`
-  in this repo.
-
-Typical flow:
+- **Configured git identity for this repo**: `user.name` is `capad.fyi`,
+  `user.email` is `capad.xyz@gmail.com`, set per-repo. This is a personal
+  project; do not push work-account commits to it.
+- **Hooks: none.** `.git/hooks/` contains only the stock `.sample` files. No
+  husky, no lint-staged, no `prepare` script. Nothing runs on commit, so nothing
+  can block one, and there is never a reason to reach for `--no-verify`.
+- **Default / integration branch: `main`. Current branch: `reauthor`**, which now
+  tracks `origin/reauthor`. Check position with `git status -sb` rather than
+  trusting a number written here.
+- **Branch naming** is loose: mostly `main` plus occasional topic branches like
+  `chore/contact-and-readme` (`type/short-kebab-description`); `reauthor` is a
+  bare noun.
+- **Commit message style**: an area prefix and a sentence-style imperative
+  summary, sometimes with a semicolon-joined pair of changes — `Engine: lock
+  hardening on the git boundary`, `UI: preview working-tree files that git has no
+  diff for`, `Perf: virtualise the commit list`. Chores use conventional-commit
+  prefixes (`chore: …`). Bodies, when present, are `-` bullet lists covering what
+  changed and why, often ending with a note about what was deliberately deferred.
+- **Do not add `Co-Authored-By` trailers.** Some older commits carry them; new
+  commits should not.
+- The working tree usually has unrelated in-progress items — the phantom-CRLF
+  `src-tauri/Cargo.toml`, plus untracked `.claude/`, `.coderabbit.yaml`,
+  `AGENTS.md` and `docs/`. **Stage files explicitly by path. Never `git add -A`,
+  `git add .`, or `git commit -a` in this repo.**
 
 ```bash
 git add <specific-path>
@@ -318,161 +559,73 @@ git commit -m "Area: what changed and why"
 git push origin HEAD
 ```
 
-## Deployment
+## The legacy Tauri shell
 
-**Grove does not deploy anywhere.** There is no hosting target, no app store
-listing, no npm publish, and no GitHub Release automation.
+`src/` (Svelte 5) and `src-tauri/` (Rust) are still in the tree and still build.
+They stay as the reference implementation until the React frontend reaches
+parity, and the root `package.json` still carries their scripts — `npm run dev`,
+`npm run build`, `npm run preview`, `npm run tauri`.
 
-- **No CI whatsoever.** There is no `.github/` directory in the repo, therefore no
-  GitHub Actions workflows, no release workflow, and no required status checks.
-  Pushing any branch, including this documentation commit, triggers nothing and
-  deploys nothing. There is no Vercel/Netlify/Pages hook to trip.
-- **No code signing.** `tauri.conf.json` contains no Windows signing
-  configuration (no `certificateThumbprint`, no `digestAlgorithm`, no
-  `timestampUrl`) and no macOS `signingIdentity`. Installers are therefore
-  unsigned, and Windows SmartScreen will warn on first run for anyone who
-  downloads one.
-- **No auto-updater.** `tauri.conf.json` has no `plugins.updater` block, no
-  `pubkey`, and `tauri-plugin-updater` is not in `Cargo.toml`. Shipping an update
-  today means a user manually downloading a new installer.
-- **Releasing is a manual local build.** Run it, then upload the artifacts
-  wherever you want them:
+Building it needs the toolchain the Electron app does not: **MSVC C++ build tools**
+(Rust's `x86_64-pc-windows-msvc` target links with `link.exe`, which ships with
+Visual Studio Build Tools, not with rustup), **rustup with the MSVC toolchain**
+(not `-gnu`), and the **WebView2 runtime** (preinstalled on Windows 11). A cold
+Rust build takes 8–14 minutes and `src-tauri/target` reaches ~11 GB. Do not
+delete that directory casually.
 
 ```bash
-npm run tauri build
+npm run tauri dev
 ```
 
-`bundle.targets` is `"all"`, so on Windows this produces both installer formats.
-Verified artifact paths and naming, from a previous run on this machine:
+Its Vite dev server is pinned to **7420** in two places that must match:
+`vite.config.js` (`server.port`) and `src-tauri/tauri.conf.json` (`build.devUrl`).
+`.claude/launch.json` still carries `tauri-dev` and `vite` configurations on 7420
+and a `vite-preview` on 5181, alongside the current `grove-renderer` on 5180.
 
-- `src-tauri/target/release/bundle/msi/Grove_0.1.3_x64_en-US.msi` (WiX MSI)
-- `src-tauri/target/release/bundle/nsis/Grove_0.1.3_x64-setup.exe` (NSIS)
-- `src-tauri/target/release/grove.exe` (the bare 10.3 MB binary)
-
-Every prior version is still sitting in that folder (0.1.0 through 0.1.3), which
-is a handy accident: it is the closest thing to a release archive that exists.
-
-- **Version bumping before a release** means editing the version in **three**
-  places so they stay in sync: `package.json`, `src-tauri/Cargo.toml`, and
-  `src-tauri/tauri.conf.json`. The MSI/NSIS filenames come from the
-  `tauri.conf.json` value. Nothing automates or validates this.
-- **Rollback**: reinstall the previous installer from that bundle folder, or
-  `git revert` the offending commit and rebuild. There is no deployed environment
-  to roll back.
-
-## Gotchas
-
-- **The dev server port is 7420, not Tauri's documented 1420, and that is
-  deliberate.** `vite.config.js` says why in a comment, and it checks out: this
-  machine has TCP ports 1375-1474 in the Windows excluded/reserved range (Hyper-V
-  or WinNAT), so 1420 cannot be bound. Every tutorial you find will say 1420.
-  Do not "correct" it.
-- **The port lives in two files.** `vite.config.js` (`server.port`) and
-  `src-tauri/tauri.conf.json` (`build.devUrl`). They must match or `tauri dev`
-  hangs waiting for a frontend that is on a different port.
-- **`src-tauri/src/main.rs` carries a load-bearing attribute with a "Do not
-  remove" comment**: `#![cfg_attr(not(debug_assertions), windows_subsystem =
-  "windows")]`. Deleting it makes release builds pop a console window behind the
-  app. Similarly, `write.rs` and `agent/mod.rs` set `CREATE_NO_WINDOW`
-  (`0x0800_0000`) on every spawned process for the same reason; commit d9ea724
-  ("Stop console windows flashing on Windows") exists purely because of this.
-  Removing those flags reintroduces flashing console windows on every git call.
-- **`src-tauri/target` is 11 GB.** Do not delete it casually to "clean up" -
-  rebuilding costs 10+ minutes. If you genuinely need the space, `cargo clean` in
-  `src-tauri` is the honest way, and accept the cold rebuild.
-- **Memory pressure on this specific machine.** A Lenovo i5-12450HX with 16 GB
-  RAM will feel a cold Rust build. Cargo defaults to one parallel job per logical
-  core (12 here), and each `rustc` plus the final `link.exe` are memory-hungry,
-  running alongside Vite/Node and the WebView2 processes the app itself spawns.
-  Expect heavy swapping if a browser and an editor are also open. Mitigation:
-  cap parallelism with `$env:CARGO_BUILD_JOBS = "4"` before the first build, and
-  close other apps for the initial 10-minute compile. Incremental rebuilds
-  (about 1 minute) are far gentler and are the normal case.
-- **`npm run dev` alone is a trap if you forget what it does.** It starts only
-  the frontend. The app shell renders, but every backend call fails because no
-  Rust process is listening on the Tauri IPC channel. If panels are mysteriously
-  empty, check whether you started `npm run tauri dev` or just `npm run dev`.
-- **The a11y warning wall is noise.** Svelte 5 emits many
-  `a11y_no_static_element_interactions` / `a11y_click_events_have_key_events`
-  warnings on every start. Real errors look different. Do not go hunting a
-  startup bug because of them.
-- **`git status` lies about `src-tauri/Cargo.toml`.** It is a CRLF phantom
-  (`core.autocrlf=true`, no `.gitattributes`), with an empty `git diff`. Adding a
-  `.gitattributes` with `* text=auto` would settle it permanently; nobody has.
-- **Two untracked files are intentionally uncommitted**: `.claude/` (contains
-  `launch.json`, which usefully documents the three run configurations and their
-  ports) and `.coderabbit.yaml` (CodeRabbit review config, staged for a future
-  PR workflow). Neither is in `.gitignore`, so they will show up in every
-  `git status`. Do not sweep them into an unrelated commit.
-- **`devlog.txt` and `src-tauri/_dev.log` / `_build.log` are captured console
-  output, not documentation.** `devlog.txt` is gitignored (`*.log` plus an
-  explicit `devlog.txt` entry); the two underscore-prefixed logs in `src-tauri/`
-  are untracked build captures. They are useful forensics (the verified build
-  timings in this runbook came from them) but they are stale, referencing
-  versions 0.1.0 and 0.1.2.
-- **`src-tauri/gen/` is gitignored but required.** Tauri regenerates the schemas
-  there during build. If your editor flags the `$schema` reference in
-  `capabilities/default.json` as unresolved on a fresh clone, run a build once.
-- **Permissions are minimal.** `src-tauri/capabilities/default.json` grants only
-  `core:default` to the `main` window. Adding a Tauri plugin means adding its
-  permission here too, or the frontend call fails at runtime with a permission
-  error rather than a compile error.
-- **CSP is disabled.** `app.security.csp` is `null` in `tauri.conf.json`. Fine for
-  a local-only pre-alpha, worth tightening before any public release.
-- **Dead scaffolding compiles but is unused.** `src-tauri/src/agent/mod.rs`
-  carries `#![allow(dead_code)]` and defines the `Agent` trait, `PrDraft` and
-  `Manual`, none of which are wired up; only the free function
-  `generate_message` is actually called. The build prints 5 warnings about this
-  plus a deprecated `gix` `work_dir()` call in `repo/read.rs:15` (should be
-  `workdir()`). All expected, none fatal.
-- **The `reauthor` branch is mid-restructure.** DESIGN.md describes the intended
-  architecture, but the three engine commits on this branch already deviate from
-  and extend it. Trust the code and the commit bodies over DESIGN.md for the
-  refresh/locking behaviour specifically. Both commit bodies explicitly list work
-  deferred to "Phase 2" (a typed `GroveError` IPC surface, and an opt-in
-  `core.fsmonitor` repo setting), so those are known gaps, not oversights.
+If you are not deliberately working on the old shell, ignore all of this.
 
 ## Project map
 
 ```
 Grove/
-  index.html            Vite entry point; mounts /src/main.js into <div id="app">
-  package.json          4 npm scripts (dev, build, preview, tauri) + frontend deps
-  package-lock.json     npm lockfile, version 3
-  vite.config.js        Vite + Svelte plugin; dev server pinned to port 7420
-  svelte.config.js      Svelte config; vitePreprocess only
-  jsconfig.json         JS-only editor config, checkJs enabled (no TypeScript)
-  README.md             Public pitch, positioning, quickstart
-  DESIGN.md             Thesis, locked decisions, IPC sketch, v0 scope
   RUNBOOK.md            This file
+  README.md             Public pitch — still describes the Tauri shell
+  DESIGN.md             Thesis, locked decisions, v0 scope — pre-Electron
+  AGENTS.md             Untracked; working agreements for AI agents on this repo
   LICENSE               GPL-3.0-or-later
-  devlog.txt            Captured dev-session console output; gitignored
-  dist/                 vite build output; gitignored; Tauri's frontendDist
-  src/                  Svelte 5 frontend (flat, one component per surface)
-    main.js             Mounts App.svelte
-    App.svelte          Root shell, layout, keyboard handling
-    state/repo.svelte.js  Single subscription to backend repo events (runes)
-    CommitGraph.svelte  Custom virtualized commit graph renderer
-    DiffView / DiffModal / FileView / CommitDetail / Changes / Worktrees .svelte
-    Home / NavHub / Spotlight / Finder / BranchPicker / Skeleton .svelte
-    styles.css          Global styles
-  src-tauri/            Rust core + Tauri configuration
-    tauri.conf.json     Window, bundle targets, devUrl (7420), frontendDist
-    Cargo.toml          Rust deps (gix, notify, tokio, anyhow, serde)
-    Cargo.lock          Committed Rust lockfile
-    build.rs            tauri-build codegen
-    capabilities/       Tauri 2 permissions; default.json grants core:default
-    icons/              App icon set (ico, icns, png)
-    app-icon.png        Source icon the icon set is generated from
-    gen/                Tauri-generated schemas; gitignored
-    target/             Cargo build cache; gitignored; ~11 GB
-    _build.log/_dev.log Untracked captured build output; source of the timings above
-    src/
-      main.rs           Binary shim; sets windows_subsystem (do not remove)
-      lib.rs            Tauri setup + invoke_handler registering 33 commands
-      repo/read.rs      gix-backed and git-backed reads (graph, status, blame)
-      repo/write.rs     git CLI writes; CREATE_NO_WINDOW; index-lock retry
-      repo/service.rs   RepoService refresh coordinator, typed events, generations
-      repo/watch.rs     Filesystem watcher; classifies Refs/Index/Workdir/Worktrees
-      agent/mod.rs      BYO-agent trait + local CLI commit messages via `claude -p`
+  .claude/launch.json   Untracked; run configurations and their pinned ports
+
+  engine/               @grove/engine — the git engine, headless, ESM
+    README.md           Port rationale and the behaviour carried over from Rust
+    src/git.ts          The only place that spawns git. Lock retry, --no-optional-locks, windowsHide
+    src/discover.ts     Repository discovery (replaces gix::discover)
+    src/parse.ts        Pure parsers for git output; test without a repo
+    src/read.ts         graph, detail, diff, blame, status, worktrees, search
+    src/write.ts        stage, unstage, commit, clone
+    src/watch.ts        Filesystem watcher; classifies events into invalidation bits
+    src/service.ts      Refresh coordinator: coalescing, generations, change detection
+    src/agent.ts        BYO-agent: local CLI backend (defaults to `claude -p`) + Manual
+    src/*.test.ts       5 test files, 44 tests
+    dist/               tsc output; gitignored; what the app requires at runtime
+
+  app/                  @grove/app — the Electron shell
+    README.md           Security posture and notes for whoever touches it next
+    DESIGN-SYSTEM.md    Visual and interaction decisions
+    electron.vite.config.ts  main / preload / renderer builds; forces CJS preload
+    vite.renderer.config.ts  Browser-only harness; 127.0.0.1:5180, strictPort
+    electron-builder.yml     Packaging config, with its reasons in comments
+    packaging/icon.png       512x512 app icon
+    packaging/make-icon.mjs  Committed generator for the icon
+    tsconfig.{node,web,test}.json  The three configs `npm run typecheck` covers
+    src/main/index.ts   Window lifecycle, CSP, frameless titlebar, grove-file:// handler
+    src/main/ipc.ts     The 33 handlers; owns watchedRoot(), the protocol's fence
+    src/main/smoke.ts   Headless end-to-end check of the bridge
+    src/preload/index.ts contextBridge — the only thing the renderer can reach
+    src/shared/ipc.ts   Channel names + the GroveApi contract
+    src/renderer/       Phase 3 harness (temporary); 9 test files under src/data + src/styles
+    out/                electron-vite bundle; gitignored
+    release*/           electron-builder output; gitignored
+
+  src/                  Legacy Svelte 5 frontend
+  src-tauri/            Legacy Rust core + Tauri config; target/ is ~11 GB
 ```
