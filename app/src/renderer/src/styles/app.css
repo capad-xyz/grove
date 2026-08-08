@@ -825,6 +825,97 @@ audio.media {
   white-space: pre;
 }
 
+/* A document is written to a width its author chose; the pane is whatever the
+   user dragged it to. Everything below exists so the second never breaks the
+   first: prose rewraps, a wide table scrolls itself, and nothing pushes the
+   pane wider than the user asked for. */
+.md-body {
+  /* URLs and long identifiers have no spaces to break at, and one of them
+     overflowing would widen the whole pane. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.md-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.6em 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.md-img-missing {
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+}
+.md-body s {
+  color: var(--text-faint);
+}
+
+/* Tables ------------------------------------------------------------------
+   A table is the one block whose width is set by its content rather than by
+   the prose measure, so it is the one block that has to be allowed to scroll
+   on its own. `max-width: max-content` keeps a narrow table narrow instead of
+   stretching two columns across the pane. */
+.md-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0.8em 0;
+}
+.md-table {
+  border-collapse: collapse;
+  max-width: max-content;
+  font-size: var(--fs-body);
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--line);
+  padding: 4px var(--gap);
+  text-align: left;
+  vertical-align: top;
+  /* Cells wrap rather than forcing the table wider, but not so eagerly that
+     a short cell breaks mid-word. */
+  overflow-wrap: normal;
+}
+.md-table th {
+  color: var(--text);
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.md-table tbody tr:hover {
+  background: var(--surface);
+}
+
+/* Task lists --------------------------------------------------------------
+   The checkbox replaces the marker, so the list loses its bullets and gets the
+   indent back as padding on the item itself. */
+.md-body ul.md-tasks {
+  list-style: none;
+  padding-left: 0;
+}
+.md-body li.md-task {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap);
+}
+.md-body li.md-task input {
+  /* Read-only: this is a file at a commit, not a checklist Grove can write to.
+     Sized down to sit with 11.5px text rather than tower over it. */
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--text-faint);
+  pointer-events: none;
+}
+/* A nested list sits inside its parent item, so it must not carry the vertical
+   margin a standalone list gets or every level compounds it. */
+.md-body li > ul,
+.md-body li > ol {
+  margin: 0.2em 0 0;
+}
+
 /* --- Find in diff ---------------------------------------------------------
    Highlights are the one deliberate exception to "diff colour is the only
    saturated colour": they are transient, they exist only while you are

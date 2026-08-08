@@ -7,11 +7,67 @@
  * `data/markdown.ts` for why that guarantee is structural rather than a filter.
  */
 
-import { useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
+import { dataUri, isRemote, mediaMime, resolveRepoPath } from '../data/images';
 import type { Block, Inline } from '../data/markdown';
 import { parseMarkdown } from '../data/markdown';
 import { source } from '../data/source';
+
+/**
+ * Where the document being rendered lives, so a relative image inside it can be
+ * resolved and fetched. Context rather than props because an image can sit at
+ * any depth — inside a table cell, inside a nested list item — and threading
+ * two values through every level would be noise at each one.
+ */
+const DocContext = createContext<{ repoPath: string; oid: string; file: string } | null>(null);
+
+/**
+ * An image referenced from the document, read at the same commit.
+ *
+ * Fetched as bytes and rendered through a `data:` URI rather than pointed at
+ * `grove-file://`, because that protocol serves the *working tree*: previewing
+ * a commit from last month would silently show today's picture.
+ *
+ * Remote images are deliberately not loaded. The CSP does not permit them, and
+ * that is the right call rather than an obstacle — fetching one would tell a
+ * third-party server that this person opened this file, which is not a thing a
+ * local git client should do on behalf of a README it did not write.
+ */
+function MdImage({ alt, src }: { alt: string; src: string }) {
+  const doc = useContext(DocContext);
+  const [data, setData] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const target = doc && !isRemote(src) ? resolveRepoPath(doc.file, src) : null;
+
+  useEffect(() => {
+    if (!doc || !target) return;
+    let cancelled = false;
+    source
+      .fileBytesAt(doc.repoPath, doc.oid, target)
+      .then((b) => !cancelled && (b ? setData(b) : setFailed(true)))
+      .catch(() => !cancelled && setFailed(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [doc, target]);
+
+  const mime = target ? mediaMime(target) : null;
+
+  if (!target || failed || !mime) {
+    // Alt text is the honest fallback: it is what the author wrote to describe
+    // the picture, and it says more than a broken-image glyph.
+    return (
+      <span className="md-img-missing" title={src}>
+        {alt || src}
+      </span>
+    );
+  }
+  if (data === null) return <span className="md-img-missing">…</span>;
+
+  return <img className="md-img" src={dataUri(mime, data)} alt={alt} />;
+}
 
 function Spans({ inline }: { inline: Inline[] }) {
   return (
@@ -22,6 +78,10 @@ function Spans({ inline }: { inline: Inline[] }) {
             return <strong key={i}>{t.text}</strong>;
           case 'em':
             return <em key={i}>{t.text}</em>;
+          case 'strike':
+            return <s key={i}>{t.text}</s>;
+          case 'image':
+            return <MdImage key={i} alt={t.alt} src={t.src} />;
           case 'code':
             return (
               <code key={i} className="md-code">
@@ -64,23 +124,57 @@ function Blocks({ blocks }: { blocks: Block[] }) {
                 <code>{b.text}</code>
               </pre>
             );
-          case 'list':
-            return b.ordered ? (
-              <ol key={i}>
+          case 'list': {
+            const Tag = b.ordered ? 'ol' : 'ul';
+            return (
+              <Tag
+                key={i}
+                start={b.ordered && b.start !== 1 ? b.start : undefined}
+                className={b.items.some((it) => it.checked !== null) ? 'md-tasks' : undefined}
+              >
                 {b.items.map((item, j) => (
-                  <li key={j}>
-                    <Spans inline={item} />
+                  <li key={j} className={item.checked !== null ? 'md-task' : undefined}>
+                    {item.checked !== null && (
+                      // Rendered, not interactive: this is a view of a file at a
+                      // commit, and a checkbox you could click would imply Grove
+                      // was going to write the tick back.
+                      <input type="checkbox" checked={item.checked} readOnly tabIndex={-1} />
+                    )}
+                    <Spans inline={item.inline} />
+                    {item.children && <Blocks blocks={[item.children]} />}
                   </li>
                 ))}
-              </ol>
-            ) : (
-              <ul key={i}>
-                {b.items.map((item, j) => (
-                  <li key={j}>
-                    <Spans inline={item} />
-                  </li>
-                ))}
-              </ul>
+              </Tag>
+            );
+          }
+          case 'table':
+            // The wrapper is what scrolls. A wide table inside a narrow pane
+            // has to take its overflow out on itself rather than on the page.
+            return (
+              <div key={i} className="md-table-wrap">
+                <table className="md-table">
+                  <thead>
+                    <tr>
+                      {b.head.map((cell, j) => (
+                        <th key={j} style={{ textAlign: b.align[j] ?? undefined }}>
+                          <Spans inline={cell} />
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {b.rows.map((row, j) => (
+                      <tr key={j}>
+                        {row.map((cell, k) => (
+                          <td key={k} style={{ textAlign: b.align[k] ?? undefined }}>
+                            <Spans inline={cell} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             );
           case 'quote':
             return (
@@ -147,7 +241,9 @@ export function MarkdownPreview({
           <div className="empty">…</div>
         ) : (
           <div className="md-body">
-            <Blocks blocks={parseMarkdown(src)} />
+            <DocContext.Provider value={{ repoPath, oid, file }}>
+              <Blocks blocks={parseMarkdown(src)} />
+            </DocContext.Provider>
           </div>
         ))}
     </div>

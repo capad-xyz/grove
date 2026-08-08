@@ -106,6 +106,41 @@ export function repoFileUrl(file: string): string {
   return `grove-file://repo/${parts.join('/')}`;
 }
 
+/**
+ * Resolve a relative path written inside `fromFile` to a repository path.
+ *
+ * `docs/PRD.md` referencing `shot.png` means `docs/shot.png`; `../logo.svg`
+ * means `logo.svg`. Returns null for anything that escapes the repository root,
+ * so a `../../../` in a document Grove did not write cannot name a file outside
+ * it. Absolute-looking sources (`/x`) are treated as repository-root-relative,
+ * which is what a documentation site would have meant by them.
+ */
+export function resolveRepoPath(fromFile: string, src: string): string | null {
+  const clean = src.replace(/\\/g, '/').split(/[?#]/)[0]!;
+  if (clean === '') return null;
+
+  const base = clean.startsWith('/')
+    ? []
+    : fromFile.replace(/\\/g, '/').split('/').slice(0, -1);
+
+  const out: string[] = [...base];
+  for (const seg of clean.replace(/^\//, '').split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      // Escaping the root is refused rather than clamped: clamping would
+      // silently resolve to some *other* real file.
+      if (out.length === 0) return null;
+      out.pop();
+      continue;
+    }
+    out.push(seg);
+  }
+  return out.length ? out.join('/') : null;
+}
+
+/** True for a source that names somewhere off this machine. */
+export const isRemote = (src: string): boolean => /^[a-z][a-z0-9+.-]*:/i.test(src.trim());
+
 export const isMarkdown = (path: string): boolean => /\.mdx?$/i.test(path);
 
 export const markdownFiles = (patch: string): string[] =>
