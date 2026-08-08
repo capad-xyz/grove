@@ -1,7 +1,7 @@
 # Grove
 
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-pre--alpha-orange.svg)](#status)
+[![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
 [![Built with](https://img.shields.io/badge/built%20with-Electron%20%2B%20React-47848f.svg)](#stack-at-a-glance)
 
 A featherweight Git companion that sits beside your AI coding editor and gives
@@ -47,9 +47,17 @@ Grove's wedge is the combination almost nobody does well:
 
 ## Status
 
-Pre-alpha, and honest about it. Grove was re-authored off Tauri + Svelte onto
-Electron + React + TypeScript, with the git engine ported from Rust to Node.
-The full list of what landed is in [CHANGELOG.md](CHANGELOG.md).
+Alpha. Grove was re-authored off Tauri + Svelte onto Electron + React +
+TypeScript, with the git engine ported from Rust to Node. The full list of what
+landed is in [CHANGELOG.md](CHANGELOG.md).
+
+The shipped [v0.1.x line](https://github.com/capad-xyz/grove/releases) was the
+Tauri build; its final state on `main` is tagged
+[`v0.1.3-legacy`](https://github.com/capad-xyz/grove/releases/tag/v0.1.3-legacy)
+and still builds from `src/` and `src-tauri/`. Two things it had are
+**deliberately not carried over**: syntax highlighting in diffs, and the
+back/forward navigation hub. Two others simply are not built yet — hover cards
+on commit nodes, and deferring the live refresh while you scroll.
 
 **Works today.** Open any repository (native chooser, drag-and-drop, typed path,
 or clone), browse a virtualised commit list with a real lane-drawn graph, read
@@ -67,7 +75,8 @@ cannot add, remove, prune, or switch. The agent layer has the local-CLI backend
 only — no API-key backend, and the command is not configurable from the
 interface. The commit list loads a fixed 200 commits. There is no settings
 surface, no code signing, no auto-updater, and no CI. Builds and measurements so
-far are Windows-only.
+far are Windows-only, and because the installers are unsigned, SmartScreen will
+warn on first run.
 
 For the product thesis and the v0 scope, see [DESIGN.md](DESIGN.md) — note that
 its "locked decisions" table predates the re-author and still describes the
