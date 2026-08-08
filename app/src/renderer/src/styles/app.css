@@ -356,7 +356,12 @@
   .pane-commits {
     flex: none;
     width: var(--pane-commits);
-    border-right: 1px solid var(--line);
+    /* The floor under the diff, and the only one that holds without JS. A width
+       dragged wide on a second monitor is still in localStorage when the same
+       window is docked at 720px, and the pane it would leave for the diff is
+       nothing. Matches MIN_DIFF in data/panes.ts. */
+    max-width: calc(100% - 260px);
+    /* No border-right: the splitter that follows this pane *is* that rule. */
   }
   .pane-diff {
     display: flex;
@@ -364,6 +369,96 @@
     flex: 1;
     min-width: 0;
     min-height: 0;
+  }
+}
+
+/* --- Splitters ------------------------------------------------------------
+   Each one replaces the 1px rule that already divided two blocks, rather than
+   adding a grip beside it — §10 is explicit that the chrome does not get more
+   weight, and a hatched bar next to a diff is exactly the kind of furniture
+   Grove is meant not to have.
+
+   What is seen stays 1px. What can be hit is `::after`, a few px to either
+   side, which is why the element carries a stacking context: the target
+   deliberately overlaps its neighbours. --- */
+
+.splitter {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  user-select: none;
+  /* Pointer drags must not be claimed by the pane's own scrolling. */
+  touch-action: none;
+}
+.splitter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--line);
+  transition: background-color 120ms var(--ease);
+}
+.splitter::after {
+  content: '';
+  position: absolute;
+}
+.splitter:focus-visible {
+  outline: none;
+}
+.splitter:hover::before {
+  background: var(--line-strong);
+}
+/* Focus reaches for the same vocabulary as a selected row (§5): the 2px rule,
+   brightened. The rule grows outward from an absolutely positioned box, so it
+   overlaps rather than displaces — layout still never moves. */
+.splitter:focus-visible::before,
+.splitter[data-dragging='true']::before {
+  background: var(--text-faint);
+}
+.splitter[data-orientation='vertical']:focus-visible::before {
+  inset: 0 -1px;
+}
+.splitter[data-orientation='horizontal']:focus-visible::before {
+  inset: -1px 0;
+}
+
+.splitter[data-orientation='vertical'] {
+  /* Narrow: the panes stack and there is nothing to split. Restored below the
+     breakpoint rule, which has to come after this one — same specificity, so
+     source order is what decides. */
+  display: none;
+  width: 1px;
+  cursor: col-resize;
+}
+/* 7px of target, leaning away from the neighbour that already has one. The
+   commit list's own scrollbar runs down the pane's right edge, immediately left
+   of this bar, so the grab zone takes 2px from it and 4px from the diff, which
+   has nothing there. */
+.splitter[data-orientation='vertical']::after {
+  inset: 0 -4px 0 -2px;
+}
+.splitter[data-orientation='horizontal'] {
+  height: 1px;
+  cursor: row-resize;
+}
+/* Same trade the other way up: the diff's horizontal scrollbar runs along the
+   bottom edge of the body above, so the zone leans down into the panel's
+   section header, which is not a target. */
+.splitter[data-orientation='horizontal']::after {
+  inset: -2px 0 -4px;
+}
+
+/* During a drag the target covers the window. The pointer is captured anyway,
+   so this is not about routing events — it is so the resize cursor survives
+   leaving the bar, and so nothing underneath takes a hover state while the
+   user is busy somewhere else. */
+.splitter[data-dragging='true']::after {
+  position: fixed;
+  inset: 0;
+}
+
+@container app (min-width: 700px) {
+  .splitter[data-orientation='vertical'] {
+    display: block;
   }
 }
 
@@ -888,13 +983,32 @@ mark.hit[data-current-match='true'] {
 
 /* --- Status -------------------------------------------------------------- */
 
+/* Two sizing modes, and the difference is whether the user has ever said
+   anything. Untouched, the panel is content-height capped at 34% — a clean repo
+   is a one-line strip, which is the whole reason that cap was a percentage. Once
+   the splitter is dragged, --pane-status is set and pins the height outright:
+   a divider that stops following your hand because the list underneath ran out
+   of files is a broken divider.
+
+   No border-top; the splitter above it draws that rule.
+   The `min()` and the `min-height` are the guarantees that survive a window
+   resize after the drag — they match MIN_BODY and MIN_STATUS in data/panes.ts,
+   which is where the same floors are enforced during the drag itself. */
 .status {
-  border-top: 1px solid var(--line);
   background: var(--surface);
   flex: none;
-  max-height: 34%;
+  height: var(--pane-status, auto);
+  min-height: 56px;
+  max-height: min(var(--pane-status, 34%), calc(100% - 140px));
   display: flex;
   flex-direction: column;
+}
+/* Once the height is pinned, the file list takes the slack so the commit box
+   stays on the bottom edge. `flex-basis: auto` is load-bearing: a `0` basis
+   would stop the list contributing its own height and collapse the panel in the
+   content-sized mode above. */
+.status .scroll {
+  flex: 1 1 auto;
 }
 .status .file {
   font-size: var(--fs-meta);

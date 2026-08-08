@@ -8,17 +8,26 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 
 import type { CommitNode, RepoSummary, WorkingStatus, Worktree } from '@grove/engine';
 
 import { Commits } from './components/Commits';
 import { Diff } from './components/Diff';
 import { Home, nameOf } from './components/Home';
+import { Splitter, type PaneGeometry } from './components/Splitter';
 import { Spotlight, type Pick } from './components/Spotlight';
 import { indexFiles, type FileEntry } from './data/match';
 import { RepoBar, Worktrees } from './components/Chrome';
 import { WorkingTree } from './components/WorkingTree';
 import { source } from './data/source';
+import {
+  commitsWidth,
+  cssPercent,
+  readPanes,
+  statusHeight,
+  writePanes,
+} from './data/panes';
 import {
   fileCount,
   isAway,
@@ -81,6 +90,69 @@ export default function App() {
   commitsRef.current = commits;
   statusRef.current = status;
   filterRef.current = filter;
+
+  // --- Draggable blocks ----------------------------------------------------
+  // Two boundaries move: commits against diff, and the working tree against
+  // both. The sizes live here as CSS custom properties rather than as inline
+  // widths, so the layout stays entirely in app.css — including the container
+  // query that drops the vertical splitter when the panes stack (§9). A null
+  // size means "never dragged", which leaves the design's own default standing
+  // instead of copying its number into a second place.
+  const [panes, setPanes] = useState(readPanes);
+
+  const appRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const paneCommitsRef = useRef<HTMLDivElement>(null);
+
+  // Written after the gesture settles rather than on every pointer move: a drag
+  // is ~60 state changes a second and localStorage is synchronous.
+  const panesLoaded = useRef(false);
+  useEffect(() => {
+    if (!panesLoaded.current) {
+      panesLoaded.current = true; // the mount pass would just write back what it read
+      return;
+    }
+    const t = setTimeout(() => writePanes(panes), 200);
+    return () => clearTimeout(t);
+  }, [panes]);
+
+  // Geometry is read from the DOM at the moment a drag needs it. The rendered
+  // size is the truth: it already accounts for the CSS floors, and for a working
+  // tree that is still shrink-wrapping its content.
+  const measureCommits = useCallback(
+    (): PaneGeometry => ({
+      size: paneCommitsRef.current?.getBoundingClientRect().width ?? 0,
+      total: bodyRef.current?.clientWidth ?? 0,
+    }),
+    [],
+  );
+
+  const measureStatus = useCallback((): PaneGeometry => {
+    const app = appRef.current;
+    // WorkingTree owns the panel element, so there is no ref to it from here.
+    const panel = app?.querySelector<HTMLElement>('.status');
+    return {
+      size: panel?.getBoundingClientRect().height ?? 0,
+      total: app?.clientHeight ?? 0,
+    };
+  }, []);
+
+  const resizeCommits = useCallback((px: number) => {
+    const next = commitsWidth(px, bodyRef.current?.clientWidth ?? 0);
+    if (next !== null) setPanes((p) => ({ ...p, commits: next }));
+  }, []);
+
+  const resizeStatus = useCallback((px: number) => {
+    const next = statusHeight(px, appRef.current?.clientHeight ?? 0);
+    if (next !== null) setPanes((p) => ({ ...p, status: next }));
+  }, []);
+
+  const paneStyle = {
+    ...(panes.commits === null
+      ? null
+      : { '--pane-commits': `${Math.round(panes.commits)}px` }),
+    ...(panes.status === null ? null : { '--pane-status': cssPercent(panes.status) }),
+  } as CSSProperties;
 
   // --- Open a repository --------------------------------------------------
   const openRepo = useCallback(
@@ -418,7 +490,7 @@ export default function App() {
   const dirty = fileCount(status) > 0;
 
   return (
-    <div className="app">
+    <div className="app" ref={appRef} style={paneStyle}>
       <RepoBar
         repo={repo}
         dirty={dirty}
@@ -469,8 +541,8 @@ export default function App() {
         </div>
       )}
 
-      <div className="body">
-        <div className="pane-commits">
+      <div className="body" ref={bodyRef}>
+        <div className="pane-commits" ref={paneCommitsRef}>
           <div className="section-head">
             <span className="label">commits</span>
             <span className="rule" />
@@ -485,6 +557,18 @@ export default function App() {
           />
         </div>
 
+        {/* Hidden by CSS below 700px, where the two panes stack and there is
+            nothing to divide. A 16px arrow step is about one SHA column. */}
+        <Splitter
+          orientation="vertical"
+          side="before"
+          step={16}
+          label="Commit list width"
+          measure={measureCommits}
+          onResize={resizeCommits}
+          onReset={() => setPanes((p) => ({ ...p, commits: null }))}
+        />
+
         <div className="pane-diff">
           <Diff
             patch={selected || viewingFile ? patch : null}
@@ -495,6 +579,22 @@ export default function App() {
           />
         </div>
       </div>
+
+      {/* Rendered on exactly the same condition as the panel below it, because
+          it draws that panel's top edge — WorkingTree renders nothing without a
+          status, and a divider above nothing is a line to the window's floor.
+          One arrow step is `--row`, so a keypress is a file appearing. */}
+      {status !== null && (
+        <Splitter
+          orientation="horizontal"
+          side="after"
+          step={24}
+          label="Working tree height"
+          measure={measureStatus}
+          onResize={resizeStatus}
+          onReset={() => setPanes((p) => ({ ...p, status: null }))}
+        />
+      )}
 
       <WorkingTree
         status={status}

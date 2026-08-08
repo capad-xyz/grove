@@ -99,20 +99,74 @@ input:focus {
 }
 
 /* --- Scrollbars: present but recessive. A bright scrollbar in a docked strip
-   is a surprising amount of visual noise. --- */
+   is a surprising amount of visual noise — but an invisible one is worse than
+   an ugly one, because a scrollbar is a control before it is decoration.
+
+   So the split is between *reading* and *reaching*: what you see is a 5px rule,
+   which is chrome (§1 — Grove is never the brightest thing on the screen); what
+   you can hit is the full 11px, because the pointer should not have to be
+   accurate about it. The transparent border plus `background-clip: padding-box`
+   is what buys both from one element — the border is part of the scrollbar's
+   box, so it is grabbable, and it lets the panel behind show through, so it is
+   not seen.
+
+   Brightness carries state here exactly as it does on a row (§5). Three steps,
+   all greyscale: --line at rest, --line-strong once the pointer is anywhere in
+   the scrolling region, --text-faint on the thumb itself. Nothing about a
+   scrollbar is content, so nothing about it gets a hue. --- */
 *::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
+}
+/* No track and no corner. A rail drawn behind the thumb doubles the amount of
+   chrome a scrollbar contributes and says nothing the thumb does not; the
+   corner is the square where two bars meet, which the diff pane has because it
+   scrolls both ways. */
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* No arrows. They are two more targets nobody aims at, and they put a stepper
+   at each end of a list Grove already navigates with j/k (§8). */
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 *::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: 9px;
+  background-color: var(--line);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 11px;
+  /* A hundred-commit history makes a thumb a few px tall, which is a target
+     nobody can grab. This is roughly one row. */
+  min-height: 24px;
+  min-width: 24px;
+  transition: background-color 120ms var(--ease);
 }
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--line-strong);
+/* Hovering the region it scrolls, not the thumb: the bar brightens as your hand
+   arrives in the pane, so it is already findable by the time you look for it.
+   This has to precede the thumb's own :hover — equal specificity, so source
+   order decides which brightness wins. */
+*:hover::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
 }
-*::-webkit-scrollbar-track {
-  background: transparent;
+*::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:active {
+  background-color: var(--text-faint);
+}
+
+/* Chromium is the engine Grove actually ships on, and the rules above are the
+   ones it runs. These are here so the renderer still degrades to something
+   quiet in a browser that has no `::-webkit-scrollbar` — served behind
+   `@supports` rather than beside them, because where both are understood the
+   precedence between the two systems is engine-specific, and one system
+   applying per engine is the only version of this that is predictable. */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
 }
 
 .scroll {
