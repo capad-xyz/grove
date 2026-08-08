@@ -82,10 +82,12 @@ holding the user's SSH keys. So:
   `Error: Electron uninstall`, run `node node_modules/electron/install.js`.
 - **Watch the port on Windows.** Hyper-V reserves several TCP ranges, and a
   bind inside one fails with `EACCES` that reads like a permissions problem but
-  is not. Vite's preview default (4173) sits inside the reserved 4147–4246 on
-  this machine, which is the same reason the root config moved Tauri off 1420
-  to 7420. `dev:renderer` pins 5180 and binds `127.0.0.1` rather than `::1`.
-  Check a candidate with `netsh int ipv4 show excludedportrange protocol=tcp`.
+  is not. Vite's preview default of 4173 landed inside a reserved range once,
+  which is the same reason the root config moved Tauri off 1420 to 7420.
+  `dev:renderer` pins 5180 and binds `127.0.0.1` rather than `::1`.
+  **The ranges are re-rolled across reboots**, so do not trust any range written
+  down anywhere — including here. Run
+  `netsh int ipv4 show excludedportrange protocol=tcp` and read the current list.
 - Electron logs every rejected `ipcMain.handle` to stderr. Expected errors — a
   path that isn't a repository, say — will show up there even though the
   renderer handled them correctly.
@@ -97,7 +99,8 @@ holding the user's SSH keys. So:
   rather than sleeping, or you will read stale state and conclude the app is
   broken. Editing `data/source.ts` also leaves HMR holding a stale module
   instance, so hard-reload before debugging anything that looks dead.
-- **No application icon yet.** Packaging warns `default Electron icon is used`.
-  Drop one at `packaging/icon.png` (256×256 or larger) when there is a mark to
-  use; `packaging/` is the `buildResources` dir precisely so it is not caught by
-  the repo's `build/` ignore rule.
+- **The icon is generated, not committed as an opaque asset.**
+  `packaging/icon.png` is produced by `packaging/make-icon.mjs` — run
+  `node packaging/make-icon.mjs` after editing it. `packaging/` is the
+  `buildResources` dir precisely so it is not caught by the repo's `build/`
+  ignore rule.
