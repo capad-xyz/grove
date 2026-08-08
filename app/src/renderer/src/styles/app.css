@@ -17,21 +17,44 @@
 
 /* --- Repo bar ------------------------------------------------------------ */
 
+/* The repo bar *is* the title bar. The window is frameless, so this row has to
+   double as the drag handle and leave the system controls their space — the
+   `titlebar-area` env vars give that geometry, and fall back to full width in a
+   plain browser where there is no overlay. */
 .repobar {
   display: flex;
   align-items: center;
   gap: var(--gap);
-  height: var(--row-lg);
-  padding: 0 var(--pad);
+  height: 34px;
+  padding-left: calc(env(titlebar-area-x, 0px) + var(--pad));
+  padding-right: calc(
+    100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%) + var(--pad)
+  );
   border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--bg);
   flex: none;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+/* Anything clickable has to opt out, or the window swallows the click as a
+   drag. */
+.repobar button,
+.repobar input,
+.repobar .no-drag {
+  -webkit-app-region: no-drag;
 }
 .repobar .name {
   color: var(--text);
+  font-weight: 600;
 }
+/* The branch reads as a chip rather than loose text: it is a value, and at this
+   size a bare word beside the repo name looks like part of the name. */
 .repobar .branch {
   color: var(--text-dim);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1px 6px;
+  font-size: var(--fs-meta);
 }
 .repobar .counts {
   color: var(--text-faint);
@@ -577,6 +600,37 @@
 }
 .img-size {
   color: var(--text-ghost);
+}
+
+/* Video and audio stream from `grove-file:` rather than arriving as base64, so
+   the element handles its own loading and the app never blocks on a file. */
+.media {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  margin-top: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-sunken);
+}
+audio.media {
+  max-height: none;
+  width: 100%;
+}
+
+/* A binary with no player is described, never decoded. Rendering its bytes as
+   text is what produced pages of mojibake. */
+.binary-card {
+  padding: var(--pad);
+  border-bottom: 1px solid var(--line);
+}
+.binary-card .label {
+  margin-top: 4px;
+}
+.truncated {
+  display: block;
+  padding: var(--gap) var(--pad) 0;
+  color: var(--text-faint);
 }
 
 /* --- Markdown preview -----------------------------------------------------

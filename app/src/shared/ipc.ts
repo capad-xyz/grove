@@ -18,6 +18,7 @@ import type {
   RepoSummary,
   WorkingStatus,
   Worktree,
+  WorkingPreview,
 } from '@grove/engine';
 
 export const CHANNELS = {
@@ -44,6 +45,7 @@ export const CHANNELS = {
   workingDiff: 'grove:working-diff',
   workingFile: 'grove:working-file',
   workingFileBytes: 'grove:working-file-bytes',
+  workingFilePreview: 'grove:working-file-preview',
   stagedDiff: 'grove:staged-diff',
   repoDirty: 'grove:repo-dirty',
   reposDirty: 'grove:repos-dirty',
@@ -107,6 +109,9 @@ export interface GroveApi {
   workingFile(path: string, file: string): Promise<string>;
   /** Base64 bytes of a working-tree file, or null if unreadable or too large. */
   workingFileBytes(path: string, file: string): Promise<string | null>;
+  /** A working-tree file classified before it is read, so binary is never
+   *  decoded as text and a huge file never blocks the main process. */
+  workingFilePreview(path: string, file: string): Promise<WorkingPreview>;
   stagedDiff(path: string): Promise<string>;
   repoDirty(path: string): Promise<boolean>;
   reposDirty(paths: string[]): Promise<Record<string, boolean>>;

@@ -11,9 +11,29 @@
 
 import { join } from 'node:path';
 
-import { app, shell, BrowserWindow, Menu, session } from 'electron';
+import { resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-import { disposeIpc, registerIpc } from './ipc';
+import { app, shell, BrowserWindow, Menu, net, protocol, session } from 'electron';
+
+import { disposeIpc, registerIpc, watchedRoot } from './ipc';
+
+/**
+ * A scheme for streaming working-tree files to the renderer.
+ *
+ * Media cannot go through IPC as base64: a 50MB video becomes a 67MB string,
+ * built in main, copied across the boundary, and held in renderer memory —
+ * which is a freeze, not a preview. A protocol streams from disk and gives
+ * `<video>` real range requests, so seeking works.
+ *
+ * Must be registered before the app is ready, hence module scope.
+ */
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'grove-file',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+]);
 import { runSmoke } from './smoke';
 
 /** Vite's dev server URL in `electron-vite dev`; undefined in a packaged app. */
@@ -48,7 +68,10 @@ function csp(): string {
     `default-src 'self'`,
     `script-src ${script}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' data:`,
+    // `grove-file:` serves working-tree files; see the protocol handler for the
+    // containment check that keeps it to the open repository.
+    `img-src 'self' data: grove-file:`,
+    `media-src 'self' grove-file:`,
     `font-src 'self' data:`,
     `connect-src ${connect}`,
     `object-src 'none'`,
@@ -66,7 +89,22 @@ function createWindow(): BrowserWindow {
     minHeight: 480,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#111111',
+    backgroundColor: '#0b0b0d',
+    // The OS title bar and Grove's own bar were two strips of chrome stacked on
+    // top of each other, one of them empty. Hiding the frame and overlaying the
+    // system controls gives that row back to the app: the repo bar *is* the
+    // title bar now. Colours come from the design system so the controls sit on
+    // --bg rather than on a slab of blue.
+    titleBarStyle: 'hidden',
+    ...(process.platform === 'darwin'
+      ? { trafficLightPosition: { x: 12, y: 10 } }
+      : {
+          titleBarOverlay: {
+            color: '#0b0b0d',
+            symbolColor: '#9a9a97',
+            height: 34,
+          },
+        }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       // The three that matter. `sandbox` puts the renderer in the OS sandbox,
@@ -156,6 +194,34 @@ void app.whenReady().then(() => {
   // Linux; kept on macOS, where the app menu is what makes the standard
   // copy/paste and quit accelerators work at all.
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+
+  // Serve working-tree files to the renderer, confined to the open repository.
+  // A scheme that reads off disk is an arbitrary-read primitive unless it is
+  // fenced, so every request is resolved and checked for containment before
+  // anything is opened — `..` cannot climb out, because `resolve` collapses it
+  // first and the prefix check then fails.
+  protocol.handle('grove-file', async (request) => {
+    const root = watchedRoot();
+    if (!root) return new Response('no repository open', { status: 403 });
+
+    let relative: string;
+    try {
+      relative = decodeURIComponent(new URL(request.url).pathname).replace(/^\/+/, '');
+    } catch {
+      return new Response('bad request', { status: 400 });
+    }
+    if (relative === '') return new Response('bad request', { status: 400 });
+
+    const rootAbs = resolve(root);
+    const full = resolve(rootAbs, relative);
+    if (full !== rootAbs && !full.startsWith(rootAbs + sep)) {
+      return new Response('outside the open repository', { status: 403 });
+    }
+
+    // `net.fetch` on a file URL gives range requests for free, which is what
+    // lets a <video> seek instead of downloading the whole thing first.
+    return net.fetch(pathToFileURL(full).toString());
+  });
 
   hardenWebContents();
   registerIpc(() => mainWindow);

@@ -17,6 +17,7 @@ import type {
   RepoSummary,
   WorkingStatus,
   Worktree,
+  WorkingPreview,
 } from '@grove/engine';
 
 import {
@@ -54,6 +55,7 @@ export interface Source {
   workingFile(path: string, file: string): Promise<string>;
   /** Base64 bytes of a working-tree file, or null if unreadable or too large. */
   workingFileBytes(path: string, file: string): Promise<string | null>;
+  workingFilePreview(path: string, file: string): Promise<WorkingPreview>;
   onEvent(listener: (e: RepoEventEnvelope) => void): () => void;
   watch(path: string): Promise<void>;
   unwatch(): Promise<void>;
@@ -106,6 +108,7 @@ const liveSource = (): Source => ({
   workingDiff: (p, file, staged) => window.grove.workingDiff(p, file, staged),
   workingFile: (p, file) => window.grove.workingFile(p, file),
   workingFileBytes: (p, file) => window.grove.workingFileBytes(p, file),
+  workingFilePreview: (p, file) => window.grove.workingFilePreview(p, file),
   onEvent: (l) => window.grove.onRepoEvent(l),
   watch: (p) => window.grove.watchRepo(p),
   unwatch: () => window.grove.unwatchRepo(),
@@ -216,6 +219,13 @@ const fixtureSource = (): Source => {
       wait(file.startsWith("demo/") ? "" : FIXTURE_WORKING_DIFF.replace(/__FILE__/g, file)),
     workingFile: () => wait(FIXTURE_MARKDOWN),
     workingFileBytes: () => wait(FIXTURE_PNG),
+    // Anything under demo/ that is not text stands in for a binary blob.
+    workingFilePreview: (_p, file) =>
+      wait(
+        /.(mp4|png|tape)$/.test(file)
+          ? { kind: "binary" as const, text: null, size: 48_213_402, truncated: false }
+          : { kind: "text" as const, text: FIXTURE_MARKDOWN, size: FIXTURE_MARKDOWN.length, truncated: false },
+      ),
     // Null on the parent side, and null at HEAD for anything untracked —
     // otherwise the harness shows a committed version of a file that has never
     // been committed, and the "new file" state becomes untestable.

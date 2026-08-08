@@ -101,7 +101,18 @@ export const FIXTURE_STATUS: WorkingStatus = {
   // An untracked image and an untracked script, because `git diff` says nothing
   // at all about either — no header, no body — and that is precisely the case
   // the preview has to handle without a patch to work from.
-  untracked: ['.coderabbit.yaml', 'AGENTS.md', 'demo/bg_light_4k.png', 'demo/capture.sh'],
+  // Deliberately mixed: a text file, a script, an image, a video and a file
+  // with an extension nothing can play. Every branch of the working-tree
+  // preview is reachable from the harness, which is how the mojibake bug got
+  // past it the first time.
+  untracked: [
+    '.coderabbit.yaml',
+    'AGENTS.md',
+    'demo/bg_light_4k.png',
+    'demo/capture.sh',
+    'demo/demo2_4k.mp4',
+    'demo/demo1_4k.tape',
+  ],
 };
 
 export const FIXTURE_WORKTREES: Worktree[] = [

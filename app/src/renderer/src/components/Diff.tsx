@@ -6,14 +6,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { WorkingPreview as EnginePreview } from '@grove/engine';
+
 import { findMatches, segments, step } from '../data/find';
 import {
   base64Size,
+  byteSize,
   dataUri,
   imageFiles,
   isImage,
   markdownFiles,
+  mediaKind,
   mimeFor,
+  repoFileUrl,
 } from '../data/images';
 import { MarkdownPreview } from './Markdown';
 import { source } from '../data/source';
@@ -124,87 +129,120 @@ function ImagePair({
  * most of what an agent leaves behind.
  */
 function WorkingPreview({ repoPath, file }: { repoPath: string; file: string }) {
-  const [before, setBefore] = useState<string | null>(null);
-  const [after, setAfter] = useState<string | null>(null);
-  const [text, setText] = useState<string | null>(null);
+  const [committed, setCommitted] = useState<string | null>(null);
+  const [info, setInfo] = useState<EnginePreview | null>(null);
   const [done, setDone] = useState(false);
 
-  const image = isImage(file);
+  const kind = mediaKind(file);
 
   useEffect(() => {
     let cancelled = false;
     setDone(false);
-    setBefore(null);
-    setAfter(null);
-    setText(null);
+    setCommitted(null);
+    setInfo(null);
 
-    const work = image
-      ? Promise.all([
-          // Absent for an untracked file, which is the normal case here.
-          source.fileBytesAt(repoPath, 'HEAD', file).catch(() => null),
-          source.workingFileBytes(repoPath, file).catch(() => null),
-        ]).then(([b, a]) => {
-          if (cancelled) return;
-          setBefore(b);
-          setAfter(a);
-        })
-      : source
-          .workingFile(repoPath, file)
-          .then((t) => !cancelled && setText(t))
-          .catch(() => !cancelled && setText(null));
+    // Media never comes through IPC — it streams from `grove-file:`. Only the
+    // committed side of an image needs bytes, because that lives in a git
+    // object rather than on disk.
+    const work =
+      kind === 'image'
+        ? source
+            .fileBytesAt(repoPath, 'HEAD', file)
+            .then((b) => !cancelled && setCommitted(b))
+            .catch(() => {})
+        : kind
+          ? Promise.resolve()
+          : source
+              .workingFilePreview(repoPath, file)
+              .then((p) => !cancelled && setInfo(p))
+              .catch(() => {});
 
     void work.finally(() => !cancelled && setDone(true));
     return () => {
       cancelled = true;
     };
-  }, [repoPath, file, image]);
+  }, [repoPath, file, kind]);
 
-  if (!done) return <div className="empty">…</div>;
-
-  if (image) {
-    const mime = mimeFor(file) ?? 'image/png';
-    const side = (label: string, b64: string | null, absent: string) => (
-      <div className="img-side">
-        <div className="label">
-          {label}
-          {b64 && <span className="img-size"> {base64Size(b64)}</span>}
-        </div>
-        {b64 ? (
-          <img src={dataUri(mime, b64)} alt={`${file} ${label}`} />
-        ) : (
-          <div className="empty">{absent}</div>
-        )}
+  // Media renders immediately; the element streams its own bytes and shows its
+  // own progress, so there is nothing to wait on before painting.
+  if (kind === 'video') {
+    return (
+      <div className="img-diff">
+        <div className="img-file">{file}</div>
+        <video className="media" src={repoFileUrl(file)} controls preload="metadata" />
       </div>
     );
+  }
+  if (kind === 'audio') {
+    return (
+      <div className="img-diff">
+        <div className="img-file">{file}</div>
+        <audio className="media" src={repoFileUrl(file)} controls preload="metadata" />
+      </div>
+    );
+  }
 
+  if (kind === 'image') {
+    const mime = mimeFor(file) ?? 'image/png';
     return (
       <div className="img-diff">
         <div className="img-file">{file}</div>
         <div className="img-pair">
-          {side('committed', before, 'not in HEAD — new file')}
-          {side('working', after, 'unreadable or over the preview size limit')}
+          <div className="img-side">
+            <div className="label">
+              committed{committed && <span className="img-size"> {base64Size(committed)}</span>}
+            </div>
+            {committed ? (
+              <img src={dataUri(mime, committed)} alt={`${file} committed`} />
+            ) : (
+              <div className="empty">{done ? 'not in HEAD — new file' : '…'}</div>
+            )}
+          </div>
+          <div className="img-side">
+            <div className="label">working</div>
+            <img src={repoFileUrl(file)} alt={`${file} working`} />
+          </div>
         </div>
       </div>
     );
   }
 
-  if (text === null) {
-    return <div className="empty">This file cannot be shown as text.</div>;
-  }
-  if (text === '') {
-    return <div className="empty">Empty file.</div>;
+  if (!done || info === null) return <div className="empty">…</div>;
+
+  if (info.kind === 'unreadable') {
+    return <div className="empty">This file could not be read.</div>;
   }
 
-  return (
-    <div className="diff-body">
-      <div className="diff-lines">
-        {text.split('\n').map((line, i) => (
-          <div key={i} className="diff-line add">
-            {line === '' ? ' ' : `+${line}`}
-          </div>
-        ))}
+  // A binary with no player gets described, not decoded. Rendering its bytes as
+  // text is what produced pages of mojibake.
+  if (info.kind === 'binary') {
+    return (
+      <div className="binary-card">
+        <div className="img-file">{file}</div>
+        <div className="label">binary · {byteSize(info.size)} · no preview available</div>
       </div>
-    </div>
+    );
+  }
+
+  if ((info.text ?? '') === '') return <div className="empty">Empty file.</div>;
+
+  return (
+    <>
+      {info.truncated && (
+        <div className="label truncated">
+          showing the first 2 MB of {byteSize(info.size)}
+        </div>
+      )}
+      <div className="diff-body">
+        <div className="diff-lines">
+          {info.text!.split('\n').map((line, i) => (
+            <div key={i} className="diff-line add">
+              {line === '' ? ' ' : `+${line}`}
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }
 

@@ -39,9 +39,12 @@ export {
   workingDiff,
   workingFile,
   workingFileBytes,
+  workingFilePreview,
   isDirty,
   stagedDiff,
 } from './read.ts';
+
+export type { WorkingPreview } from './read.ts';
 
 export {
   stage,

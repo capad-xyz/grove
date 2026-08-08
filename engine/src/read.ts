@@ -6,7 +6,15 @@
  * Ported from `src-tauri/src/repo/read.rs`.
  */
 
-import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+  statSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { discover, workdirOf } from './discover.ts';
@@ -437,6 +445,78 @@ export function workingFileBytes(path: string, file: string): string | null {
     return readFileSync(full).toString('base64');
   } catch {
     return null;
+  }
+}
+
+/** Text previews stop here; past this nobody is reading, they are scrolling. */
+export const MAX_TEXT_PREVIEW_BYTES = 2 * 1024 * 1024;
+
+export interface WorkingPreview {
+  kind: 'text' | 'binary' | 'unreadable';
+  /** Present only for `text`. */
+  text: string | null;
+  size: number;
+  /** True when `text` stops at the cap rather than the end of the file. */
+  truncated: boolean;
+}
+
+/**
+ * Is this file binary? Decided the way git decides: a NUL byte in the first
+ * few KB. Extensions are a hint, not an answer — plenty of binaries have none,
+ * and a `.tape` or `.dat` could be either.
+ *
+ * Reads only the head of the file, so asking about a 400MB video costs one
+ * 8KB read rather than loading it.
+ */
+function looksBinary(full: string): boolean {
+  const fd = openSync(full, 'r');
+  try {
+    const buf = Buffer.alloc(8000);
+    const n = readSync(fd, buf, 0, 8000, 0);
+    return buf.subarray(0, n).includes(0);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * A working-tree file classified before it is read, so a binary is never
+ * decoded as UTF-8 and poured into the interface as mojibake — which is
+ * exactly what previewing an .mp4 used to do.
+ */
+export function workingFilePreview(path: string, file: string): WorkingPreview {
+  let full: string;
+  try {
+    full = join(workdirOf(path), file);
+  } catch {
+    return { kind: 'unreadable', text: null, size: 0, truncated: false };
+  }
+
+  try {
+    const size = statSync(full).size;
+    if (size > 0 && looksBinary(full)) {
+      return { kind: 'binary', text: null, size, truncated: false };
+    }
+
+    if (size > MAX_TEXT_PREVIEW_BYTES) {
+      const fd = openSync(full, 'r');
+      try {
+        const buf = Buffer.alloc(MAX_TEXT_PREVIEW_BYTES);
+        const n = readSync(fd, buf, 0, MAX_TEXT_PREVIEW_BYTES, 0);
+        return {
+          kind: 'text',
+          text: buf.subarray(0, n).toString('utf8'),
+          size,
+          truncated: true,
+        };
+      } finally {
+        closeSync(fd);
+      }
+    }
+
+    return { kind: 'text', text: readFileSync(full, 'utf8'), size, truncated: false };
+  } catch {
+    return { kind: 'unreadable', text: null, size: 0, truncated: false };
   }
 }
 

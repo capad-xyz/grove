@@ -28,6 +28,17 @@ let watched: { gen: number; root: string; repo: engine.WatchedRepo } | null = nu
  */
 let watchGen = 0;
 
+/**
+ * Root of the repository currently being watched.
+ *
+ * The media protocol uses this as its containment boundary: without it, a
+ * scheme that serves files off disk is an arbitrary-read primitive handed to
+ * the renderer, which is the one thing the sandbox exists to prevent.
+ */
+export function watchedRoot(): string | null {
+  return watched?.root ?? null;
+}
+
 /** Nudge the live coordinator, if one is running. */
 function poke(bits: number): void {
   watched?.repo.poke(bits);
@@ -99,6 +110,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     engine.workingDiff(path, file, staged),
   );
   handle(CHANNELS.workingFile, (path: string, file: string) => engine.workingFile(path, file));
+  handle(CHANNELS.workingFilePreview, (path: string, file: string) =>
+    engine.workingFilePreview(path, file),
+  );
   handle(CHANNELS.workingFileBytes, (path: string, file: string) =>
     engine.workingFileBytes(path, file),
   );
