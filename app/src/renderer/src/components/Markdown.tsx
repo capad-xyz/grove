@@ -7,7 +7,7 @@
  * `data/markdown.ts` for why that guarantee is structural rather than a filter.
  */
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 import { dataUri, isRemote, mediaMime, resolveRepoPath } from '../data/images';
 import type { Block, Inline } from '../data/markdown';
@@ -215,6 +215,26 @@ export function MarkdownPreview({
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
+  /**
+   * Held across renders because `MdImage` keys its fetch effect on this value.
+   * As a fresh object literal it changed identity on every render, so every
+   * re-render of this component re-fetched every image in the document — over
+   * IPC, one git invocation each.
+   */
+  const doc = useMemo(() => ({ repoPath, oid, file }), [repoPath, oid, file]);
+
+  /**
+   * Parsing and building the element tree both scale with the document, and
+   * neither depends on anything but its source. Memoizing the *element* rather
+   * than just the blocks means React skips the subtree entirely when nothing
+   * changed — a re-render caused by typing in the find field no longer
+   * re-parses a README or re-reconciles it.
+   */
+  const body = useMemo(
+    () => (src === null ? null : <Blocks blocks={parseMarkdown(src)} />),
+    [src],
+  );
+
   useEffect(() => {
     if (!open || src !== null) return;
     let cancelled = false;
@@ -241,9 +261,7 @@ export function MarkdownPreview({
           <div className="empty">…</div>
         ) : (
           <div className="md-body">
-            <DocContext.Provider value={{ repoPath, oid, file }}>
-              <Blocks blocks={parseMarkdown(src)} />
-            </DocContext.Provider>
+            <DocContext.Provider value={doc}>{body}</DocContext.Provider>
           </div>
         ))}
     </div>

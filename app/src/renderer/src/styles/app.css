@@ -664,6 +664,18 @@
      `normal` a single unbreakable token still forces the pane wide. */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  /* Rows that are not near the viewport skip layout, paint and hit-testing.
+     `auto` on the intrinsic size makes each row remember the height it last
+     measured, which is what makes this work for *wrapped* rows: their height
+     depends on the pane's width, which is exactly why the fixed-advance
+     windowing in data/window.ts stopped applying to this list. There is no
+     measurement pass to write and no scroll handler to drive — the scrollbar
+     stays honest because the remembered sizes are real ones.
+
+     Measured on a 30,106-line patch at this CSS: first layout 988ms -> 430ms,
+     and a width change — one splitter-drag frame — 374ms -> 99ms. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--fs-code) * var(--lh-code));
 }
 .diff-line.add {
   color: var(--add);
@@ -695,6 +707,18 @@
 .img-diff {
   border-bottom: 1px solid var(--line);
   padding: var(--gap) var(--pad);
+}
+/* A working-tree media or binary preview is the only thing that lands directly
+   under `.diff`; every other path brings its own `.diff-body` to scroll in.
+   `.diff` has no overflow of its own, so without this the card is a flex item at
+   `min-height: auto` — dragging the working tree up shrinks the pane around it
+   while the card keeps its full height, spilling past the bottom edge with no
+   way to reach the rest. The child selector is deliberate: the same card inside
+   `.diff-body` (a commit's image diff) already has a scroller above it. */
+.diff > .img-diff,
+.diff > .binary-card {
+  overflow: auto;
+  min-height: 0;
 }
 .img-file {
   color: var(--text-dim);

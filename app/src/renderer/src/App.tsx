@@ -467,6 +467,16 @@ export default function App() {
     },
     [path],
   );
+  /**
+   * Stable identity on purpose: `Diff` is memoized, and an inline arrow here
+   * would hand it a new prop on every render of `App` — which is every watcher
+   * event — defeating the memo entirely at the one place it is worth having.
+   */
+  const closeDiff = useCallback(() => {
+    setSelected(null);
+    setViewingFile(null);
+  }, []);
+
   selectCommitRef.current = selectCommit;
 
   const title = useMemo(() => {
@@ -582,10 +592,7 @@ export default function App() {
             repoPath={path}
             oid={selected}
             working={viewingFile}
-            onClose={() => {
-              setSelected(null);
-              setViewingFile(null);
-            }}
+            onClose={closeDiff}
           />
         </div>
       </div>

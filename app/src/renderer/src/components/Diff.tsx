@@ -4,10 +4,11 @@
  * navigation to reach this.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { WorkingPreview as EnginePreview } from '@grove/engine';
 
+import { firstCount, runStaircase } from '../data/chunks';
 import { findMatches, segments, step } from '../data/find';
 import {
   base64Size,
@@ -246,7 +247,19 @@ function WorkingPreview({ repoPath, file }: { repoPath: string; file: string }) 
   );
 }
 
-export function Diff({
+/**
+ * Memoized on its props, which are all primitives or state objects held by
+ * `App`.
+ *
+ * The diff pane is the one subtree whose size is unbounded — a commit can be
+ * 30,000 rows — and it sits under a component that re-renders on every event
+ * the repo coordinator emits: a save, a stage, a branch change, a splitter
+ * drag. None of those alter the patch being displayed, but without this every
+ * one of them re-reconciles every row. The `useMemo`s below keep the
+ * *derivation* cheap; only this keeps the *reconciliation* from happening at
+ * all.
+ */
+export const Diff = memo(function Diff({
   patch,
   title,
   onClose,
@@ -279,6 +292,38 @@ export function Diff({
 
   // A new diff invalidates the old match positions entirely.
   useEffect(() => setAt(0), [patch, query]);
+
+  // --- Progressive mounting (data/chunks.ts) -------------------------------
+
+  const [mounted, setMounted] = useState(() => firstCount(lines.length));
+
+  // A new patch restarts the staircase in the same render that changes `lines`.
+  // The effect below would do it a beat later, and that beat is a render of the
+  // new diff with the old diff's prefix length — briefly showing all of a short
+  // commit that follows a long one.
+  const patchRef = useRef(patch);
+  if (patchRef.current !== patch) {
+    patchRef.current = patch;
+    setMounted(firstCount(lines.length));
+  }
+
+  useEffect(
+    () =>
+      runStaircase(
+        lines.length,
+        setMounted,
+        (run) => requestAnimationFrame(run),
+        (handle) => cancelAnimationFrame(handle),
+      ),
+    [lines.length],
+  );
+
+  // Searching needs every row to exist: matches are counted across the whole
+  // patch, so a hit inside an unmounted row would be counted, reported in
+  // `n/total`, and then have nothing for `scrollIntoView` to reach. Opening the
+  // field is the trigger rather than typing into it, which gives the remaining
+  // rows a head start while the query is still being typed.
+  const shown = finding ? lines.length : Math.min(mounted, lines.length);
 
   const close = useCallback(() => {
     setFinding(false);
@@ -436,8 +481,10 @@ export function Diff({
               the full scrolled width. Sizing the rows themselves against 100%
               measures the *pane*, which leaves +/- backgrounds ending mid-air
               once you scroll right. */}
+          {/* A prefix, grown a batch per frame. Slicing from 0 keeps `i` the
+              row's real index, which the match map and the keys both rely on. */}
           <div className="diff-lines">
-            {lines.map((l, i) => {
+            {lines.slice(0, shown).map((l, i) => {
               const base = firstIndexByLine.get(i);
               const parts =
                 base === undefined
@@ -471,4 +518,4 @@ export function Diff({
       )}
     </div>
   );
-}
+});
