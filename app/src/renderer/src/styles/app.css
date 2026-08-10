@@ -348,7 +348,24 @@
   min-width: 0;
   min-height: 0;
 }
+/* Narrow: the diff pane leaves the row and covers the whole surface. It is the
+   same element either way — exactly one <Diff> is ever mounted — because
+   rendering both postures and hiding one still builds both, and a 30,000-line
+   diff is not something to build twice for a copy nobody sees.
+
+   Which posture applies stays entirely in CSS. Deciding it in JS instead would
+   mean the mounted diff and the visible one are two separate opinions that have
+   to agree at every width, and when they disagree the pane is simply blank. */
 .pane-diff {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  flex-direction: column;
+  background: var(--surface-sunken);
+}
+/* Nothing selected: the list is the whole point of the narrow posture, so the
+   empty diff must not cover it. `data-viewing` is on `.app`. */
+.app[data-viewing='false'] .pane-diff {
   display: none;
 }
 
@@ -363,12 +380,23 @@
     max-width: calc(100% - 260px);
     /* No border-right: the splitter that follows this pane *is* that rule. */
   }
-  .pane-diff {
+  .pane-diff,
+  /* Wide with nothing selected still shows the pane and its empty state. */
+  .app[data-viewing='false'] .pane-diff {
     display: flex;
+    position: static;
+    z-index: auto;
+    background: none;
     flex-direction: column;
     flex: 1;
     min-width: 0;
     min-height: 0;
+  }
+  /* Closing is what the back-gesture would be on a phone: it belongs to the
+     posture where the diff covers everything, not to a pane sitting in a row
+     next to the thing it would return you to. */
+  .pane-diff .diff-close {
+    display: none;
   }
 }
 
@@ -616,18 +644,38 @@
   overflow: auto;
   min-height: 0;
 }
-/* Shrink-wraps to the widest line, with a 100% floor so a short diff still
-   fills the pane. Rows then inherit that width and their backgrounds run the
-   full scrolled distance. */
+/* Lines wrap. A diff pane is a fixed column of a fixed window and the content
+   is somebody else's line lengths, so the choice is between using the width
+   that exists or making the reader drag a horizontal scrollbar to finish every
+   long line. Wrapping also means the pane never has content parked off to the
+   right where it cannot be seen at all.
+
+   Wrapped rows no longer need the inline-block shrink-to-fit that made row
+   backgrounds span a scrolled width — there is nothing to scroll to. */
 .diff-lines {
-  display: inline-block;
-  min-width: 100%;
+  display: block;
+  min-width: 0;
 }
 .diff-line {
-  display: flex;
+  display: block;
   padding: 0 var(--pad);
-  white-space: pre;
-  overflow-wrap: normal;
+  /* `pre-wrap` keeps leading indentation, which in a diff is information.
+     `anywhere` is what lets a minified line or a long URL break at all — with
+     `normal` a single unbreakable token still forces the pane wide. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* Rows that are not near the viewport skip layout, paint and hit-testing.
+     `auto` on the intrinsic size makes each row remember the height it last
+     measured, which is what makes this work for *wrapped* rows: their height
+     depends on the pane's width, which is exactly why the fixed-advance
+     windowing in data/window.ts stopped applying to this list. There is no
+     measurement pass to write and no scroll handler to drive — the scrollbar
+     stays honest because the remembered sizes are real ones.
+
+     Measured on a 30,106-line patch at this CSS: first layout 988ms -> 430ms,
+     and a width change — one splitter-drag frame — 374ms -> 99ms. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto calc(var(--fs-code) * var(--lh-code));
 }
 .diff-line.add {
   color: var(--add);
@@ -659,6 +707,18 @@
 .img-diff {
   border-bottom: 1px solid var(--line);
   padding: var(--gap) var(--pad);
+}
+/* A working-tree media or binary preview is the only thing that lands directly
+   under `.diff`; every other path brings its own `.diff-body` to scroll in.
+   `.diff` has no overflow of its own, so without this the card is a flex item at
+   `min-height: auto` — dragging the working tree up shrinks the pane around it
+   while the card keeps its full height, spilling past the bottom edge with no
+   way to reach the rest. The child selector is deliberate: the same card inside
+   `.diff-body` (a commit's image diff) already has a scroller above it. */
+.diff > .img-diff,
+.diff > .binary-card {
+  overflow: auto;
+  min-height: 0;
 }
 .img-file {
   color: var(--text-dim);
@@ -758,7 +818,10 @@ audio.media {
 }
 .md-body {
   padding: var(--gap) var(--pad) var(--pad);
-  max-width: 68ch;
+  /* No reading-measure cap. A prose column capped at 68ch is right for a page
+     the reader chose to open at whatever width; this is a pane the reader
+     already sized deliberately, so capping it a second time just parks empty
+     space to the right of a diff they widened on purpose. */
   line-height: 1.6;
   color: var(--text-dim);
 }
@@ -822,7 +885,102 @@ audio.media {
   margin: 0.6em 0;
 }
 .md-pre code {
-  white-space: pre;
+  /* Wraps for the same reason diff lines do, and keeps its indentation. The
+     `overflow-x: auto` above stays as the escape hatch for the one thing that
+     genuinely cannot wrap — a long unbroken token with nowhere to break. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A document is written to a width its author chose; the pane is whatever the
+   user dragged it to. Everything below exists so the second never breaks the
+   first: prose rewraps, a wide table scrolls itself, and nothing pushes the
+   pane wider than the user asked for. */
+.md-body {
+  /* URLs and long identifiers have no spaces to break at, and one of them
+     overflowing would widen the whole pane. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.md-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.6em 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.md-img-missing {
+  color: var(--text-ghost);
+  font-size: var(--fs-meta);
+}
+.md-body s {
+  color: var(--text-faint);
+}
+
+/* Tables ------------------------------------------------------------------
+   A table is the one block whose width is set by its content rather than by
+   the prose measure, so it is the one block that has to be allowed to scroll
+   on its own. `max-width: max-content` keeps a narrow table narrow instead of
+   stretching two columns across the pane. */
+.md-table-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  margin: 0.8em 0;
+}
+.md-table {
+  border-collapse: collapse;
+  max-width: max-content;
+  font-size: var(--fs-body);
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--line);
+  padding: 4px var(--gap);
+  text-align: left;
+  vertical-align: top;
+  /* Cells wrap rather than forcing the table wider, but not so eagerly that
+     a short cell breaks mid-word. */
+  overflow-wrap: normal;
+}
+.md-table th {
+  color: var(--text);
+  background: var(--surface);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.md-table tbody tr:hover {
+  background: var(--surface);
+}
+
+/* Task lists --------------------------------------------------------------
+   The checkbox replaces the marker, so the list loses its bullets and gets the
+   indent back as padding on the item itself. */
+.md-body ul.md-tasks {
+  list-style: none;
+  padding-left: 0;
+}
+.md-body li.md-task {
+  display: flex;
+  align-items: baseline;
+  gap: var(--gap);
+}
+.md-body li.md-task input {
+  /* Read-only: this is a file at a commit, not a checklist Grove can write to.
+     Sized down to sit with 11.5px text rather than tower over it. */
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--text-faint);
+  pointer-events: none;
+}
+/* A nested list sits inside its parent item, so it must not carry the vertical
+   margin a standalone list gets or every level compounds it. */
+.md-body li > ul,
+.md-body li > ol {
+  margin: 0.2em 0 0;
 }
 
 /* --- Find in diff ---------------------------------------------------------

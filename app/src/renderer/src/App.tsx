@@ -2,9 +2,10 @@
  * The review surface.
  *
  * Layout adapts on container width (DESIGN-SYSTEM.md §8): one column with the
- * diff as an overlay when docked narrow, two panes when open wide. Both are
- * rendered; CSS decides which is visible, so there is no resize flicker and no
- * JS measuring the window.
+ * diff as an overlay when docked narrow, two panes when open wide. Exactly one
+ * <Diff> is mounted and CSS restyles it into either posture — rendering both
+ * and hiding one still builds both, which on a large diff is the whole cost
+ * paid twice for a copy that is never seen.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -466,6 +467,16 @@ export default function App() {
     },
     [path],
   );
+  /**
+   * Stable identity on purpose: `Diff` is memoized, and an inline arrow here
+   * would hand it a new prop on every render of `App` — which is every watcher
+   * event — defeating the memo entirely at the one place it is worth having.
+   */
+  const closeDiff = useCallback(() => {
+    setSelected(null);
+    setViewingFile(null);
+  }, []);
+
   selectCommitRef.current = selectCommit;
 
   const title = useMemo(() => {
@@ -490,7 +501,12 @@ export default function App() {
   const dirty = fileCount(status) > 0;
 
   return (
-    <div className="app" ref={appRef} style={paneStyle}>
+    <div
+      className="app"
+      ref={appRef}
+      style={paneStyle}
+      data-viewing={selected !== null || viewingFile !== null}
+    >
       <RepoBar
         repo={repo}
         dirty={dirty}
@@ -576,6 +592,7 @@ export default function App() {
             repoPath={path}
             oid={selected}
             working={viewingFile}
+            onClose={closeDiff}
           />
         </div>
       </div>
@@ -620,23 +637,6 @@ export default function App() {
         />
       )}
 
-      {/* Narrow posture: the diff takes the whole surface. Hidden by CSS at
-          >= 700px, where the pane above is showing the same thing. */}
-      {(selected || viewingFile) && (
-        <div className="overlay">
-          <Diff
-            patch={patch}
-            title={title}
-            onClose={() => {
-              setSelected(null);
-              setViewingFile(null);
-            }}
-            repoPath={path}
-            oid={selected}
-            working={viewingFile}
-          />
-        </div>
-      )}
     </div>
   );
 }

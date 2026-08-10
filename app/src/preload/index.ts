@@ -52,6 +52,9 @@ const api: GroveApi = {
   commitChanges: (path, message) => ipcRenderer.invoke(CHANNELS.commitChanges, path, message),
   cloneRepo: (url) => ipcRenderer.invoke(CHANNELS.cloneRepo, url),
 
+  // --- OS integration ---
+  writeClipboard: (text) => ipcRenderer.invoke(CHANNELS.writeClipboard, text),
+
   // --- Agent ---
   generateCommitMessage: (path) => ipcRenderer.invoke(CHANNELS.generateCommitMessage, path),
 

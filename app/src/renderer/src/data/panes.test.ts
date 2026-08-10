@@ -108,3 +108,4 @@ test('stored nonsense is pulled back into a band that can still be rendered', ()
   });
   assert.deepEqual(sanePanes({ commits: Number.NaN, status: Number.NaN }), NO_PANES);
 });
+

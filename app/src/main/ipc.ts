@@ -6,7 +6,7 @@
  * nothing here should grow a second opinion about git.
  */
 
-import { app, dialog, ipcMain, type BrowserWindow } from 'electron';
+import { app, clipboard, dialog, ipcMain, type BrowserWindow } from 'electron';
 
 import * as engine from '@grove/engine';
 import { INV_FULL, INV_INDEX, INV_WORKDIR, type RepoEventEnvelope } from '@grove/engine';
@@ -167,6 +167,13 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return out;
   });
   handle(CHANNELS.cloneRepo, (url: string) => engine.cloneToGroveRepos(url));
+
+  // Written from main rather than through `navigator.clipboard`, because the
+  // renderer refuses every permission request (index.ts) — including the one
+  // Chromium raises for clipboard access. Main owns OS integration anyway.
+  handle(CHANNELS.writeClipboard, (text: string) => {
+    clipboard.writeText(text);
+  });
 
   // --- Agent ---
   handle(CHANNELS.generateCommitMessage, async (path: string) => {

@@ -78,6 +78,8 @@ export interface Source {
   remember(path: string, name: string): Promise<RecentRepo[]>;
   listDir(path: string): Promise<DirListing>;
   clone(url: string): Promise<string>;
+  /** Put text on the system clipboard. */
+  writeClipboard(text: string): Promise<void>;
 
   // --- Writes. Each one pokes the coordinator on the main side, so the
   //     refresh arrives as a normal repo event rather than a second,
@@ -129,6 +131,7 @@ const liveSource = (): Source => ({
   remember: (p, name) => window.grove.addRecentRepo(p, name),
   listDir: (p) => window.grove.listDir(p),
   clone: (url) => window.grove.cloneRepo(url),
+  writeClipboard: (text) => window.grove.writeClipboard(text),
 
   stage: (p, file) => window.grove.stageFile(p, file),
   unstage: (p, file) => window.grove.unstageFile(p, file),
@@ -276,6 +279,9 @@ const fixtureSource = (): Source => {
     remember: () => wait(FIXTURE_RECENTS),
     listDir: () => wait(FIXTURE_DIR),
     clone: () => Promise.reject(new Error('Cloning needs the desktop app.')),
+    // The fixture harness runs in a plain browser, where this is the one
+    // clipboard path that needs no permission prompt.
+    writeClipboard: (text) => navigator.clipboard.writeText(text),
 
     stage: async (_p, file) => {
       await wait(undefined, 40);
